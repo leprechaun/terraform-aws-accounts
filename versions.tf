@@ -8,15 +8,21 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
   }
 
-  # Backend blocks can't reference variables, so profile/region/bucket are
-  # hardcoded here rather than pulled from terraform.tfvars.
+  # Backend blocks can't reference variables, so bucket/region are hardcoded
+  # rather than pulled from terraform.tfvars. No `profile` here on purpose:
+  # it can't be conditional, and CI has no "lmac" profile. Both local runs
+  # and CI authenticate via the standard AWS credential chain instead —
+  # locally, export AWS_PROFILE=lmac before running terraform (see README).
   backend "s3" {
     bucket       = "lmacguire-terraform"
     key          = "terraform-aws-accounts/terraform.tfstate"
     region       = "ap-southeast-1"
-    profile      = "lmac"
     encrypt      = true
     use_lockfile = true
   }

@@ -1,9 +1,3 @@
-variable "aws_profile" {
-  description = "AWS CLI profile used to authenticate against the owner (management) account."
-  type        = string
-  default     = "lmac"
-}
-
 variable "aws_region" {
   description = "AWS region for the provider. Organizations/IAM are global services, but the provider still requires a region."
   type        = string
@@ -15,14 +9,11 @@ variable "owner_account_id" {
   type        = string
 }
 
-variable "existing_account_id" {
-  description = "AWS account ID of the existing sub-account being imported into this org."
-  type        = string
-}
-
 variable "existing_account_email" {
-  description = "Root email address of the existing sub-account. Must match AWS's record exactly (Organizations returns this on import, so it will show as a diff if wrong)."
+  description = "Root email address of the existing sub-account. Only matters at import time (email is ignore_changes'd afterward) — real value lives in the gitignored emails.auto.tfvars, never committed."
   type        = string
+  default     = ""
+  sensitive   = true
 }
 
 variable "existing_account_name" {
@@ -30,24 +21,18 @@ variable "existing_account_name" {
   type        = string
 }
 
-variable "snacker_tracker_account_name" {
-  description = "Name for the new sub-account Terraform will create."
-  type        = string
-}
-
 variable "snacker_tracker_account_email" {
-  description = "Root email address for the new sub-account. Must be unique across all AWS accounts (not just this org)."
+  description = "Root email address for the new sub-account. Only matters at creation time (email is ignore_changes'd afterward) — real value lives in the gitignored emails.auto.tfvars, never committed."
   type        = string
-}
-
-variable "krapao_reviews_account_name" {
-  description = "Name for the krapao-reviews sub-account Terraform will create."
-  type        = string
+  default     = ""
+  sensitive   = true
 }
 
 variable "krapao_reviews_account_email" {
-  description = "Root email address for the krapao-reviews sub-account. Must be unique across all AWS accounts (not just this org)."
+  description = "Root email address for the krapao-reviews sub-account. Only matters at creation time (email is ignore_changes'd afterward) — real value lives in the gitignored emails.auto.tfvars, never committed."
   type        = string
+  default     = ""
+  sensitive   = true
 }
 
 variable "close_on_deletion" {

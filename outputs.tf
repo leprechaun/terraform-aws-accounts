@@ -7,7 +7,7 @@ output "organization_root_id" {
 }
 
 output "existing_account_id" {
-  value = aws_organizations_account.existing.id
+  value = aws_organizations_account.lmacguire-sub-01.id
 }
 
 output "snacker_tracker_account_id" {
@@ -26,4 +26,9 @@ output "krapao_reviews_account_id" {
 output "krapao_reviews_account_access_role_arn" {
   description = "Role to assume from the owner account to operate inside the krapao-reviews sub-account."
   value       = "arn:aws:iam::${aws_organizations_account.krapao-reviews.id}:role/OrganizationAccountAccessRole"
+}
+
+output "github_actions_role_arn" {
+  description = "Set this as the AWS_DEPLOY_ROLE_ARN repository variable in GitHub Actions."
+  value       = aws_iam_role.github_actions.arn
 }

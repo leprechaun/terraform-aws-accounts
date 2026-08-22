@@ -11,18 +11,9 @@ permissions:
   contents: read
   pull-requests: write
 
-env:
-  # No local AWS profile in CI — credentials come from the OIDC-assumed
-  # role via aws-actions/configure-aws-credentials below.
-  TF_VAR_aws_profile: ""
-  TF_VAR_owner_account_id: ${{ vars.OWNER_ACCOUNT_ID }}
-  TF_VAR_existing_account_id: ${{ vars.EXISTING_ACCOUNT_ID }}
-  TF_VAR_existing_account_email: ${{ vars.EXISTING_ACCOUNT_EMAIL }}
-  TF_VAR_existing_account_name: ${{ vars.EXISTING_ACCOUNT_NAME }}
-  TF_VAR_snacker_tracker_account_name: ${{ vars.SNACKER_TRACKER_ACCOUNT_NAME }}
-  TF_VAR_snacker_tracker_account_email: ${{ vars.SNACKER_TRACKER_ACCOUNT_EMAIL }}
-  TF_VAR_krapao_reviews_account_name: ${{ vars.KRAPAO_REVIEWS_ACCOUNT_NAME }}
-  TF_VAR_krapao_reviews_account_email: ${{ vars.KRAPAO_REVIEWS_ACCOUNT_EMAIL }}
+# terraform.tfvars is committed, so no TF_VAR_* plumbing is needed here —
+# only the deploy role ARN, which stays a repo variable since the OIDC role
+# doesn't exist until the first local apply (see README).
 
 jobs:
   plan:
