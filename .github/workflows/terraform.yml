@@ -37,7 +37,7 @@ jobs:
         run: terraform plan -no-color -input=false
         continue-on-error: true
 
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@v9
         with:
           script: |
             const body = `#### Terraform Plan\n<details><summary>Show plan</summary>\n\n\`\`\`\n${{ steps.plan.outputs.stdout }}\n\`\`\`\n\n</details>`;
