@@ -11,8 +11,9 @@ resource "aws_organizations_account" "lmacguire-sub-01" {
     # that the Organizations API never returns on read, so a plain import
     # always shows a phantom diff on them. email only matters at the moment
     # of import — its real value lives in the gitignored emails.auto.tfvars,
-    # never committed, and the var default ("") would otherwise cause a
-    # force-replace on every subsequent plan without this.
+    # never committed, so most plans (CI included) see the placeholder
+    # default instead. ignore_changes stops that placeholder from ever
+    # being diffed against the real value already in state.
     ignore_changes = [role_name, iam_user_access_to_billing, email]
 
     # This account has live resources in it. Never let a stray
@@ -37,8 +38,10 @@ resource "aws_organizations_account" "snacker-tracker" {
 
   lifecycle {
     # email only matters at the moment of creation — its real value lives
-    # in the gitignored emails.auto.tfvars, never committed. Once created,
-    # ignore it forever so the "" default doesn't force a replace.
+    # in the gitignored emails.auto.tfvars, never committed, so most plans
+    # (CI included) see the placeholder default instead. ignore_changes
+    # stops that placeholder from ever being diffed against the real value
+    # already in state.
     ignore_changes = [email]
   }
 
@@ -59,8 +62,10 @@ resource "aws_organizations_account" "krapao-reviews" {
 
   lifecycle {
     # email only matters at the moment of creation — its real value lives
-    # in the gitignored emails.auto.tfvars, never committed. Once created,
-    # ignore it forever so the "" default doesn't force a replace.
+    # in the gitignored emails.auto.tfvars, never committed, so most plans
+    # (CI included) see the placeholder default instead. ignore_changes
+    # stops that placeholder from ever being diffed against the real value
+    # already in state.
     ignore_changes = [email]
   }
 

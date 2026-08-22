@@ -10,9 +10,9 @@ variable "owner_account_id" {
 }
 
 variable "existing_account_email" {
-  description = "Root email address of the existing sub-account. Only matters at import time (email is ignore_changes'd afterward) — real value lives in the gitignored emails.auto.tfvars, never committed."
+  description = "Root email address of the existing sub-account. Only matters at import time (email is ignore_changes'd afterward) — real value lives in the gitignored emails.auto.tfvars, never committed. Default is a harmless placeholder, not empty — the provider validates email length (6-64 chars) at plan time regardless of ignore_changes, so \"\" would fail validation in CI where the real value is never present."
   type        = string
-  default     = ""
+  default     = "unset@example.com"
   sensitive   = true
 }
 
@@ -22,16 +22,16 @@ variable "existing_account_name" {
 }
 
 variable "snacker_tracker_account_email" {
-  description = "Root email address for the new sub-account. Only matters at creation time (email is ignore_changes'd afterward) — real value lives in the gitignored emails.auto.tfvars, never committed."
+  description = "Root email address for the new sub-account. Only matters at creation time (email is ignore_changes'd afterward) — real value lives in the gitignored emails.auto.tfvars, never committed. Default is a harmless placeholder, not empty — see existing_account_email for why."
   type        = string
-  default     = ""
+  default     = "unset@example.com"
   sensitive   = true
 }
 
 variable "krapao_reviews_account_email" {
-  description = "Root email address for the krapao-reviews sub-account. Only matters at creation time (email is ignore_changes'd afterward) — real value lives in the gitignored emails.auto.tfvars, never committed."
+  description = "Root email address for the krapao-reviews sub-account. Only matters at creation time (email is ignore_changes'd afterward) — real value lives in the gitignored emails.auto.tfvars, never committed. Default is a harmless placeholder, not empty — see existing_account_email for why."
   type        = string
-  default     = ""
+  default     = "unset@example.com"
   sensitive   = true
 }
 
