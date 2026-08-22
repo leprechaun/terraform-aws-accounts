@@ -40,14 +40,18 @@ data "aws_iam_policy_document" "github_actions_assume_role" {
       values   = ["sts.amazonaws.com"]
     }
 
-    # Only PR runs (plan) and pushes to master (apply) from this exact repo
-    # can assume the role — not forks, not other branches.
+    # Only PR runs (plan) and the production-environment apply job from this
+    # exact repo can assume the role — not forks, not other branches. A job
+    # with `environment:` set gets a sub claim scoped to that environment
+    # (repo:OWNER/REPO:environment:NAME) instead of the usual ref-scoped
+    # one, which is why this lists environment:production rather than
+    # ref:refs/heads/master for the apply side.
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
       values = [
         "repo:leprechaun/terraform-aws-accounts:pull_request",
-        "repo:leprechaun/terraform-aws-accounts:ref:refs/heads/master",
+        "repo:leprechaun/terraform-aws-accounts:environment:production",
       ]
     }
   }
