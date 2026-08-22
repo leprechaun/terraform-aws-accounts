@@ -1,4 +1,4 @@
-# Lets GitHub Actions in leprechaun/aws-organizations assume an IAM role via
+# Lets GitHub Actions in leprechaun/terraform-aws-accounts assume an IAM role via
 # short-lived OIDC tokens instead of storing long-lived AWS credentials as
 # repo secrets.
 #
@@ -46,8 +46,8 @@ data "aws_iam_policy_document" "github_actions_assume_role" {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
       values = [
-        "repo:leprechaun/aws-organizations:pull_request",
-        "repo:leprechaun/aws-organizations:ref:refs/heads/master",
+        "repo:leprechaun/terraform-aws-accounts:pull_request",
+        "repo:leprechaun/terraform-aws-accounts:ref:refs/heads/master",
       ]
     }
   }
