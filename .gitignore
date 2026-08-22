@@ -1,0 +1,15 @@
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# terraform.tfvars is intentionally committed (private repo; account IDs
+# and emails aren't credentials). Still ignore any local override files.
+*.auto.tfvars
