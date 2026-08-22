@@ -46,12 +46,19 @@ data "aws_iam_policy_document" "github_actions_assume_role" {
     # (repo:OWNER/REPO:environment:NAME) instead of the usual ref-scoped
     # one, which is why this lists environment:production rather than
     # ref:refs/heads/master for the apply side.
+    #
+    # GitHub now appends immutable owner/repo IDs to the sub claim (e.g.
+    # leprechaun@355637/terraform-aws-accounts@1343063405 instead of plain
+    # leprechaun/terraform-aws-accounts) so a renamed/transferred repo can't
+    # inherit an old trust relationship. Confirmed via a temporary debug
+    # step in the workflow that printed the actual token claims — don't
+    # revert this back to the plain-name form.
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
       values = [
-        "repo:leprechaun/terraform-aws-accounts:pull_request",
-        "repo:leprechaun/terraform-aws-accounts:environment:production",
+        "repo:leprechaun@355637/terraform-aws-accounts@1343063405:pull_request",
+        "repo:leprechaun@355637/terraform-aws-accounts@1343063405:environment:production",
       ]
     }
   }
