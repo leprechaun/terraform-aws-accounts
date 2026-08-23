@@ -2,6 +2,60 @@
 # README. Billing APIs are us-east-1-only regardless of where the data
 # itself concerns, so these use the default provider (already us-east-1).
 
+resource "aws_s3_bucket" "cost_exports" {
+  bucket = "lmacguire-aws-costs-reporter"
+
+  lifecycle {
+    # Billing history bucket — never let a stray destroy take out cost data.
+    prevent_destroy = true
+  }
+}
+
+# Confirmed to match the real bucket policy exactly via
+# `aws s3api get-bucket-policy --bucket lmacguire-aws-costs-reporter` — same
+# Sid, same principals, same conditions. Not a guess. Covers both the newer
+# BCM Data Exports service and the older `billingreports.amazonaws.com`
+# (legacy CUR) principal, and both s3:PutObject and s3:GetBucketPolicy
+# (CloudTrail-style buckets only need GetBucketAcl; exports check the
+# bucket policy itself before writing).
+data "aws_iam_policy_document" "cost_exports" {
+  statement {
+    sid    = "EnableAWSDataExportsToWriteToS3AndCheckPolicy"
+    effect = "Allow"
+
+    principals {
+      type        = "Service"
+      identifiers = ["bcm-data-exports.amazonaws.com", "billingreports.amazonaws.com"]
+    }
+
+    actions = ["s3:PutObject", "s3:GetBucketPolicy"]
+    resources = [
+      aws_s3_bucket.cost_exports.arn,
+      "${aws_s3_bucket.cost_exports.arn}/*",
+    ]
+
+    condition {
+      test     = "StringLike"
+      variable = "aws:SourceAccount"
+      values   = [var.owner_account_id]
+    }
+
+    condition {
+      test     = "StringLike"
+      variable = "aws:SourceArn"
+      values = [
+        "arn:aws:cur:us-east-1:${var.owner_account_id}:definition/*",
+        "arn:aws:bcm-data-exports:us-east-1:${var.owner_account_id}:export/*",
+      ]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "cost_exports" {
+  bucket = aws_s3_bucket.cost_exports.id
+  policy = data.aws_iam_policy_document.cost_exports.json
+}
+
 locals {
   # The only difference between the "with" and "without" resource-ids
   # query variants is whether line_item_resource_id and
@@ -74,4 +128,6 @@ resource "aws_bcmdataexports_export" "cur" {
       frequency = "SYNCHRONOUS"
     }
   }
+
+  depends_on = [aws_s3_bucket_policy.cost_exports]
 }
