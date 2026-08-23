@@ -16,7 +16,8 @@ provider "aws" {
       Environment = "shared"
       ManagedBy = "terraform"
       Repository = "git@github.com:leprechaun/terraform-aws-accounts"
-      Project = "terraform-aws-accounts"
+      Project = "shared-infra"
+      Component = "shared-infra"
     }
   }
 }
@@ -35,7 +36,8 @@ provider "aws" {
       Environment = "shared"
       ManagedBy = "terraform"
       Repository = "git@github.com:leprechaun/terraform-aws-accounts"
-      Project = "terraform-aws-accounts"
+      Project = "shared-infra"
+      Component = "shared-infra"
     }
   }
 }
