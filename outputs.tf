@@ -33,6 +33,11 @@ output "github_actions_role_arn" {
   value       = aws_iam_role.github_actions.arn
 }
 
+output "github_actions_plan_role_arn" {
+  description = "Set this as the AWS_PLAN_ROLE_ARN repository variable in GitHub Actions."
+  value       = aws_iam_role.github_actions_plan.arn
+}
+
 output "cloudtrail_arn" {
   value = aws_cloudtrail.default.arn
 }

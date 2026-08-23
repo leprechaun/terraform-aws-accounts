@@ -40,14 +40,13 @@ data "aws_iam_policy_document" "github_actions_assume_role" {
       values   = ["sts.amazonaws.com"]
     }
 
-    # Three job shapes need to assume this role, each with a differently
-    # scoped sub claim:
-    #  - the PR plan job                         -> ...:pull_request
-    #  - the push-to-master plan-apply job, which -> ...:ref:refs/heads/master
-    #    has no `environment:` set (it must run unattended so the saved
-    #    plan is ready before the apply job waits on approval)
-    #  - the apply job, which sets `environment: prod` and so gets an
-    #    environment-scoped claim instead of the ref-scoped one          -> ...:environment:prod
+    # Only the apply job — the one that sets `environment: prod` and so
+    # gets an environment-scoped claim (repo:OWNER/REPO:environment:NAME)
+    # instead of the usual ref-scoped one — can assume this role. The PR
+    # plan job and the unattended push-to-master plan-apply job (see
+    # .github/workflows/terraform.yml) only ever run `terraform plan`, so
+    # they assume the read-only aws_iam_role.github_actions_plan role in
+    # github_actions_plan_role.tf instead — never this one.
     #
     # GitHub now appends immutable owner/repo IDs to the sub claim (e.g.
     # leprechaun@355637/terraform-aws-accounts@1343063405 instead of plain
@@ -59,8 +58,6 @@ data "aws_iam_policy_document" "github_actions_assume_role" {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
       values = [
-        "repo:leprechaun@355637/terraform-aws-accounts@1343063405:pull_request",
-        "repo:leprechaun@355637/terraform-aws-accounts@1343063405:ref:refs/heads/master",
         "repo:leprechaun@355637/terraform-aws-accounts@1343063405:environment:prod",
       ]
     }
@@ -126,6 +123,31 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     ]
     resources = [
       aws_iam_role.krapao_reviews_github_actions.arn,
+    ]
+  }
+
+  # The read-only plan role (github_actions_plan_role.tf) is created by this
+  # state, not imported/bootstrapped outside it like the two roles above —
+  # so, unlike those, apply also needs Create/Delete on it for full
+  # lifecycle management.
+  statement {
+    sid    = "ManagePlanRoleForGithubActions"
+    effect = "Allow"
+    actions = [
+      "iam:GetRole",
+      "iam:GetRolePolicy",
+      "iam:ListRolePolicies",
+      "iam:ListAttachedRolePolicies",
+      "iam:PutRolePolicy",
+      "iam:DeleteRolePolicy",
+      "iam:UpdateAssumeRolePolicy",
+      "iam:TagRole",
+      "iam:UntagRole",
+      "iam:CreateRole",
+      "iam:DeleteRole",
+    ]
+    resources = [
+      aws_iam_role.github_actions_plan.arn,
     ]
   }
 
