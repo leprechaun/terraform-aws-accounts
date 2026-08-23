@@ -114,8 +114,15 @@ resource "aws_cloudtrail" "default" {
 
   include_global_service_events = true
   is_multi_region_trail         = true
-  enable_log_file_validation    = false
   is_organization_trail         = true
+
+  # Turns on CloudTrail's log file integrity validation: hourly signed
+  # digest files chained to prior digests, letting `aws cloudtrail
+  # validate-logs` prove the delivered log files haven't been modified,
+  # deleted, or added out of band since delivery. Free, no functional
+  # downside, and exactly the guarantee an audit trail bucket should have —
+  # there was no reason found for this having been off.
+  enable_log_file_validation = true
 
   # Matches the real trail's single default event selector (all management
   # events, no data resources) — omitting this block entirely would also
