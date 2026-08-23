@@ -129,6 +129,47 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     actions   = ["sts:GetCallerIdentity"]
     resources = ["*"]
   }
+
+  # Full s3:* rather than enumerating exact Get*/Put* calls: the aws_s3_bucket
+  # and aws_s3_bucket_policy resources touch a long, provider-version-
+  # dependent set of read APIs on every plan, and getting this wrong means
+  # another round of AccessDenied-then-patch in CI. Scoped tightly to just
+  # these two buckets, not account-wide, so the blast radius stays small
+  # even though the action list doesn't.
+  statement {
+    sid    = "CloudTrailAndCostExportBuckets"
+    effect = "Allow"
+    actions = [
+      "s3:*",
+    ]
+    resources = [
+      aws_s3_bucket.cloudtrail_logs.arn,
+      "${aws_s3_bucket.cloudtrail_logs.arn}/*",
+      aws_s3_bucket.cost_exports.arn,
+      "${aws_s3_bucket.cost_exports.arn}/*",
+    ]
+  }
+
+  # DescribeTrails (and other list-type CloudTrail actions) don't support
+  # resource-level ARN scoping in IAM regardless of what's requested, so
+  # this is account-wide for CloudTrail — same tradeoff as bcm-data-exports
+  # below.
+  statement {
+    sid       = "CloudTrail"
+    effect    = "Allow"
+    actions   = ["cloudtrail:*"]
+    resources = ["*"]
+  }
+
+  # bcm-data-exports doesn't reliably support resource-level ARN scoping for
+  # its List/Get actions, so this is account-wide for that one service —
+  # still far narrower than granting broad admin access.
+  statement {
+    sid       = "BcmDataExports"
+    effect    = "Allow"
+    actions   = ["bcm-data-exports:*"]
+    resources = ["*"]
+  }
 }
 
 resource "aws_iam_role_policy" "github_actions" {
