@@ -106,6 +106,29 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     ]
   }
 
+  # This state also manages the krapao-reviews-github-actions role (imported
+  # in krapao_reviews_role.tf, previously owned by a different state) — same
+  # read/write action set as SelfManageGithubActionsRole above, just scoped
+  # to that role instead of this one.
+  statement {
+    sid    = "ManageKrapaoReviewsGithubActionsRole"
+    effect = "Allow"
+    actions = [
+      "iam:GetRole",
+      "iam:GetRolePolicy",
+      "iam:ListRolePolicies",
+      "iam:ListAttachedRolePolicies",
+      "iam:PutRolePolicy",
+      "iam:DeleteRolePolicy",
+      "iam:UpdateAssumeRolePolicy",
+      "iam:TagRole",
+      "iam:UntagRole",
+    ]
+    resources = [
+      aws_iam_role.krapao_reviews_github_actions.arn,
+    ]
+  }
+
   statement {
     sid       = "TerraformStateObjects"
     effect    = "Allow"
