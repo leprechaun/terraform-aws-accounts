@@ -36,3 +36,7 @@ output "github_actions_role_arn" {
 output "cloudtrail_arn" {
   value = aws_cloudtrail.default.arn
 }
+
+output "krapao_reviews_github_actions_role_arn" {
+  value = aws_iam_role.krapao_reviews_github_actions.arn
+}

@@ -10,6 +10,15 @@ provider "aws" {
   # management (owner) account. This hard-fails instead of silently running
   # against the wrong account if credentials resolve somewhere unexpected.
   allowed_account_ids = [var.owner_account_id]
+
+  default_tags {
+    tags = {
+      Environment = "shared"
+      ManagedBy = "terraform"
+      Repository = "git@github.com:leprechaun/terraform-aws-accounts"
+      Project = "terraform-aws-accounts"
+    }
+  }
 }
 
 # The CloudTrail trail's home region is ap-southeast-1 — trails are created
@@ -20,4 +29,13 @@ provider "aws" {
   region = "ap-southeast-1"
 
   allowed_account_ids = [var.owner_account_id]
+
+  default_tags {
+    tags = {
+      Environment = "shared"
+      ManagedBy = "terraform"
+      Repository = "git@github.com:leprechaun/terraform-aws-accounts"
+      Project = "terraform-aws-accounts"
+    }
+  }
 }
