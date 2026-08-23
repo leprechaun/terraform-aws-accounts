@@ -68,12 +68,13 @@ jobs:
       - if: steps.plan.outcome == 'failure'
         run: exit 1
 
-  apply:
+  # Runs on every push to master, unattended (no environment gate) — this is
+  # what fixes the plan that apply below will actually run, so what a
+  # reviewer approves is exactly what gets applied, not a fresh plan
+  # computed at approval time (which could've drifted in between).
+  plan-apply:
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
-    # Configure this environment in GitHub repo Settings > Environments with
-    # required reviewers, so apply pauses for manual approval before running.
-    environment: production
     steps:
       - uses: actions/checkout@v7
 
@@ -103,4 +104,52 @@ jobs:
 
       - run: terraform init -input=false
 
-      - run: terraform apply -auto-approve -input=false
+      - run: terraform plan -input=false -out=tfplan
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: tfplan
+          retention-days: 1
+
+  apply:
+    needs: plan-apply
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    # Configure this environment in GitHub repo Settings > Environments with
+    # required reviewers, so apply pauses for manual approval before running.
+    environment: prod
+    steps:
+      - uses: actions/checkout@v7
+
+      # TEMPORARY — remove once the OIDC assume-role issue is diagnosed.
+      # Prints exactly what GitHub actually puts in the token for this run,
+      # so we're comparing against reality instead of assumptions.
+      - name: Debug OIDC claims
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const id_token = await core.getIDToken('sts.amazonaws.com');
+            const payload = JSON.parse(Buffer.from(id_token.split('.')[1], 'base64').toString());
+            core.info(`aud: ${payload.aud}`);
+            core.info(`sub: ${payload.sub}`);
+            core.info(`repository: ${payload.repository}`);
+            core.info(`repository_owner: ${payload.repository_owner}`);
+            core.info(`event_name: ${payload.event_name}`);
+            core.info(`ref: ${payload.ref}`);
+            core.info(`environment: ${payload.environment}`);
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ap-southeast-1
+
+      - uses: hashicorp/setup-terraform@v4
+
+      - run: terraform init -input=false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+
+      - run: terraform apply -input=false tfplan

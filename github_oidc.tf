@@ -40,12 +40,14 @@ data "aws_iam_policy_document" "github_actions_assume_role" {
       values   = ["sts.amazonaws.com"]
     }
 
-    # Only PR runs (plan) and the production-environment apply job from this
-    # exact repo can assume the role — not forks, not other branches. A job
-    # with `environment:` set gets a sub claim scoped to that environment
-    # (repo:OWNER/REPO:environment:NAME) instead of the usual ref-scoped
-    # one, which is why this lists environment:production rather than
-    # ref:refs/heads/master for the apply side.
+    # Three job shapes need to assume this role, each with a differently
+    # scoped sub claim:
+    #  - the PR plan job                         -> ...:pull_request
+    #  - the push-to-master plan-apply job, which -> ...:ref:refs/heads/master
+    #    has no `environment:` set (it must run unattended so the saved
+    #    plan is ready before the apply job waits on approval)
+    #  - the apply job, which sets `environment: prod` and so gets an
+    #    environment-scoped claim instead of the ref-scoped one          -> ...:environment:prod
     #
     # GitHub now appends immutable owner/repo IDs to the sub claim (e.g.
     # leprechaun@355637/terraform-aws-accounts@1343063405 instead of plain
@@ -58,7 +60,8 @@ data "aws_iam_policy_document" "github_actions_assume_role" {
       variable = "token.actions.githubusercontent.com:sub"
       values = [
         "repo:leprechaun@355637/terraform-aws-accounts@1343063405:pull_request",
-        "repo:leprechaun@355637/terraform-aws-accounts@1343063405:environment:production",
+        "repo:leprechaun@355637/terraform-aws-accounts@1343063405:ref:refs/heads/master",
+        "repo:leprechaun@355637/terraform-aws-accounts@1343063405:environment:prod",
       ]
     }
   }
