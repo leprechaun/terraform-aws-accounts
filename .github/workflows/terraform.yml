@@ -22,23 +22,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # TEMPORARY — remove once the OIDC assume-role issue is diagnosed.
-      # Prints exactly what GitHub actually puts in the token for this run,
-      # so we're comparing against reality instead of assumptions.
-      - name: Debug OIDC claims
-        uses: actions/github-script@v9
-        with:
-          script: |
-            const id_token = await core.getIDToken('sts.amazonaws.com');
-            const payload = JSON.parse(Buffer.from(id_token.split('.')[1], 'base64').toString());
-            core.info(`aud: ${payload.aud}`);
-            core.info(`sub: ${payload.sub}`);
-            core.info(`repository: ${payload.repository}`);
-            core.info(`repository_owner: ${payload.repository_owner}`);
-            core.info(`event_name: ${payload.event_name}`);
-            core.info(`ref: ${payload.ref}`);
-            core.info(`environment: ${payload.environment}`);
-
       - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_PLAN_ROLE_ARN }}
