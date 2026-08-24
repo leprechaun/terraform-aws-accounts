@@ -218,6 +218,26 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     actions   = ["bcm-data-exports:*"]
     resources = ["*"]
   }
+
+  # identity_center.tf's permission set, policy attachment, and account
+  # assignments — same account-wide tradeoff as CloudTrail/bcm-data-exports
+  # above, for the same reason (no consistent resource-level ARN scoping).
+  statement {
+    sid       = "IdentityCenter"
+    effect    = "Allow"
+    actions   = ["sso:*"]
+    resources = ["*"]
+  }
+
+  # Read-only: identity_center.tf looks up the SSO user by username, but
+  # never creates/modifies users — that stays a manual console step (see
+  # README) so this role never gets write access to identitystore.
+  statement {
+    sid       = "IdentityStoreRead"
+    effect    = "Allow"
+    actions   = ["identitystore:Describe*", "identitystore:List*", "identitystore:Get*"]
+    resources = ["*"]
+  }
 }
 
 resource "aws_iam_role_policy" "github_actions" {

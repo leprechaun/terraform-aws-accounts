@@ -40,3 +40,8 @@ variable "close_on_deletion" {
   type        = bool
   default     = false
 }
+
+variable "sso_username" {
+  description = "IAM Identity Center username to grant AdministratorAccess to on every account (identity_center.tf). The user itself is created by hand in the console, not by Terraform — see README — so this must match whatever username you set there exactly, or the aws_identitystore_user lookup fails."
+  type        = string
+}

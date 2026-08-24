@@ -10,9 +10,16 @@ resource "aws_organizations_organization" "this" {
   # apply — a separate prerequisite from enabled_policy_types below (that
   # one enables the TAG_POLICY policy *type* on the root; this one grants
   # the tag policies service itself trusted access to the org).
+  # sso.amazonaws.com: the "Enable trusted access" grant IAM Identity
+  # Center's console asks for before you can enable it — listed here so
+  # that once it's on, this list stays authoritative and a later `apply`
+  # doesn't see it as drift and disable it out from under you. Enabling the
+  # Identity Center *instance* itself still has to happen once via the
+  # console; this only covers the org-trust half.
   aws_service_access_principals = [
     "cloudtrail.amazonaws.com",
     "tagpolicies.tag.amazonaws.com",
+    "sso.amazonaws.com",
   ]
 
   # Must list every policy type actually enabled on the root, or Terraform

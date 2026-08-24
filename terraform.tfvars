@@ -8,3 +8,5 @@ existing_account_name = "lmacguire-sub-01"
 # emails.auto.tfvars (gitignored, not committed) and README.
 
 close_on_deletion = false
+
+sso_username = "lmac"
