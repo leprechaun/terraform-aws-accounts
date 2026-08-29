@@ -43,12 +43,34 @@ resource "aws_ssoadmin_managed_policy_attachment" "admin" {
   managed_policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
 }
 
-# One assignment per account — management account plus all three members.
-# Same AdministratorAccess permission set everywhere since this is a single-
-# operator org; split into per-account permission sets later if that ever
-# stops being true.
+# Read-only counterpart to AdministratorAccess above — assigned to the same
+# user, on the same accounts, so day-to-day looking-around can happen
+# without holding write access by default. The access portal lets you pick
+# which permission set to assume per session; least-privilege-by-default
+# without needing a separate identity.
+resource "aws_ssoadmin_permission_set" "read_only" {
+  provider = aws.ap_southeast_1
+
+  name             = "ReadOnlyAccess"
+  instance_arn     = tolist(data.aws_ssoadmin_instances.this.arns)[0]
+  session_duration = "PT8H"
+}
+
+resource "aws_ssoadmin_managed_policy_attachment" "read_only" {
+  provider = aws.ap_southeast_1
+
+  instance_arn       = tolist(data.aws_ssoadmin_instances.this.arns)[0]
+  permission_set_arn = aws_ssoadmin_permission_set.read_only.arn
+  managed_policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
+}
+
+# Every account both permission sets above get assigned to — management
+# account plus all three members. Same accounts for both AdministratorAccess
+# and ReadOnlyAccess since this is a single-operator org; split into
+# per-account/per-permission-set target lists later if that ever stops
+# being true.
 locals {
-  sso_admin_accounts = {
+  sso_target_accounts = {
     management       = var.owner_account_id
     lmacguire-sub-01 = aws_organizations_account.lmacguire-sub-01.id
     snacker-tracker  = aws_organizations_account.snacker-tracker.id
@@ -57,11 +79,25 @@ locals {
 }
 
 resource "aws_ssoadmin_account_assignment" "admin" {
-  for_each = local.sso_admin_accounts
+  for_each = local.sso_target_accounts
   provider = aws.ap_southeast_1
 
   instance_arn       = tolist(data.aws_ssoadmin_instances.this.arns)[0]
   permission_set_arn = aws_ssoadmin_permission_set.admin.arn
+
+  principal_id   = data.aws_identitystore_user.me.user_id
+  principal_type = "USER"
+
+  target_id   = each.value
+  target_type = "AWS_ACCOUNT"
+}
+
+resource "aws_ssoadmin_account_assignment" "read_only" {
+  for_each = local.sso_target_accounts
+  provider = aws.ap_southeast_1
+
+  instance_arn       = tolist(data.aws_ssoadmin_instances.this.arns)[0]
+  permission_set_arn = aws_ssoadmin_permission_set.read_only.arn
 
   principal_id   = data.aws_identitystore_user.me.user_id
   principal_type = "USER"
