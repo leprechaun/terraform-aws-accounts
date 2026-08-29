@@ -1,62 +1,25 @@
 name: Terraform
 
 on:
-  pull_request:
-    branches: [master]
   push:
-    branches: [master]
+    branches: ["**"]
 
 permissions:
   id-token: write
   contents: read
-  pull-requests: write
 
 # terraform.tfvars is committed, so no TF_VAR_* plumbing is needed here —
 # only the deploy role ARN, which stays a repo variable since the OIDC role
 # doesn't exist until the first local apply (see README).
 
 jobs:
+  # Runs on every push, to every branch, unattended (no environment gate) —
+  # this is what fixes the plan that apply below will actually run, so what
+  # a reviewer approves is exactly what gets applied, not a fresh plan
+  # computed at approval time (which could've drifted in between). Only
+  # master's plan artifact ever gets consumed by apply; every other
+  # branch's just expires unused after a day.
   plan:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: aws-actions/configure-aws-credentials@v6
-        with:
-          role-to-assume: ${{ vars.AWS_PLAN_ROLE_ARN }}
-          aws-region: ap-southeast-1
-
-      - uses: hashicorp/setup-terraform@v4
-        with:
-          terraform_wrapper: true
-
-      - run: terraform init -input=false
-
-      - id: plan
-        run: terraform plan -no-color -input=false
-        continue-on-error: true
-
-      - uses: actions/github-script@v9
-        with:
-          script: |
-            const body = `#### Terraform Plan\n<details><summary>Show plan</summary>\n\n\`\`\`\n${{ steps.plan.outputs.stdout }}\n\`\`\`\n\n</details>`;
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: body.slice(0, 65000),
-            });
-
-      - if: steps.plan.outcome == 'failure'
-        run: exit 1
-
-  # Runs on every push to master, unattended (no environment gate) — this is
-  # what fixes the plan that apply below will actually run, so what a
-  # reviewer approves is exactly what gets applied, not a fresh plan
-  # computed at approval time (which could've drifted in between).
-  plan-apply:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -79,8 +42,8 @@ jobs:
           retention-days: 1
 
   apply:
-    needs: plan-apply
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: plan
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     # Configure this environment in GitHub repo Settings > Environments with
     # required reviewers, so apply pauses for manual approval before running.

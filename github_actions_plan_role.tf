@@ -1,8 +1,8 @@
-# A second, read-only GitHub Actions role for `terraform plan` — used by
-# the PR plan job and the unattended push-to-master plan-apply job (see
-# .github/workflows/terraform.yml), neither of which should ever hold
-# credentials capable of changing anything. Only the environment:prod-gated
-# apply job assumes the full read/write role in github_oidc.tf.
+# A second, read-only GitHub Actions role for `terraform plan` — used by the
+# single unattended plan job that now runs on every push, to every branch
+# (see .github/workflows/terraform.yml), which should never hold credentials
+# capable of changing anything. Only the environment:prod-gated apply job
+# assumes the full read/write role in github_oidc.tf.
 
 data "aws_iam_policy_document" "github_actions_plan_assume_role" {
   statement {
@@ -20,17 +20,19 @@ data "aws_iam_policy_document" "github_actions_plan_assume_role" {
       values   = ["sts.amazonaws.com"]
     }
 
-    # Both job shapes that only ever run `terraform plan`: the PR plan job
-    # (pull_request) and the push-to-master plan-apply job, which has no
-    # `environment:` set and so gets a ref-scoped claim rather than an
-    # environment-scoped one. See github_oidc.tf for the equivalent
-    # environment:prod-only condition on the apply-capable role.
+    # The plan job has no `environment:` set, so it always gets a ref-scoped
+    # claim (repo:OWNER/REPO:ref:refs/heads/BRANCH) rather than an
+    # environment-scoped one — and since it now runs on push of every
+    # branch, not just master, this is a wildcard across all branch refs
+    # rather than one fixed value. See github_oidc.tf for the equivalent
+    # environment:prod-only condition on the apply-capable role — broadening
+    # this one doesn't broaden that one, since apply is gated by environment
+    # rather than by branch ref.
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
       values = [
-        "repo:leprechaun@355637/terraform-aws-accounts@1343063405:pull_request",
-        "repo:leprechaun@355637/terraform-aws-accounts@1343063405:ref:refs/heads/master",
+        "repo:leprechaun@355637/terraform-aws-accounts@1343063405:ref:refs/heads/*",
       ]
     }
   }
