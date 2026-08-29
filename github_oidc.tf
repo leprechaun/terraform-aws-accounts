@@ -219,6 +219,16 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     resources = ["*"]
   }
 
+  # dns.tf's hosted zone(s) — CreateHostedZone can't be scoped to a
+  # resource ARN since the zone ID doesn't exist until after creation, same
+  # tradeoff as elsewhere in this file.
+  statement {
+    sid       = "Route53"
+    effect    = "Allow"
+    actions   = ["route53:*"]
+    resources = ["*"]
+  }
+
   # identity_center.tf's permission set, policy attachment, and account
   # assignments — same account-wide tradeoff as CloudTrail/bcm-data-exports
   # above, for the same reason (no consistent resource-level ARN scoping).

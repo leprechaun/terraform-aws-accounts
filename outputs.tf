@@ -45,3 +45,14 @@ output "cloudtrail_arn" {
 output "krapao_reviews_github_actions_role_arn" {
   value = aws_iam_role.krapao_reviews_github_actions.arn
 }
+
+output "personal_domain_zone_id" {
+  value     = aws_route53_zone.personal_domain.zone_id
+  sensitive = true
+}
+
+output "personal_domain_name_servers" {
+  description = "Set these as the NS records at the registrar to actually delegate the domain to this zone. Run `terraform output personal_domain_name_servers` to reveal — sensitive outputs are redacted from plan/apply/CI output by default."
+  value       = aws_route53_zone.personal_domain.name_servers
+  sensitive   = true
+}

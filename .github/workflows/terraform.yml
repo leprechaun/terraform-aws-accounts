@@ -21,6 +21,11 @@ jobs:
   # branch's just expires unused after a day.
   plan:
     runs-on: ubuntu-latest
+    # Only plan needs this — apply downloads and applies the exact saved
+    # plan file below, which already has variable values baked in, so it
+    # never touches this secret at all.
+    env:
+      TF_VAR_personal_domain_name: ${{ secrets.PERSONAL_DOMAIN_NAME }}
     steps:
       - uses: actions/checkout@v7
 

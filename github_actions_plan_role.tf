@@ -111,6 +111,17 @@ data "aws_iam_policy_document" "github_actions_plan_permissions" {
     resources = ["*"]
   }
 
+  # dns.tf's hosted zone(s). Zone IDs are AWS-generated, not chosen at
+  # create time, so there's no ARN to scope to until after a zone already
+  # exists — "*" for consistency with the same tradeoff elsewhere in this
+  # file, not because scoping was skipped.
+  statement {
+    sid       = "Route53Read"
+    effect    = "Allow"
+    actions   = ["route53:Get*", "route53:List*"]
+    resources = ["*"]
+  }
+
   # cost_allocation_tags.tf's aws_ce_cost_allocation_tag resources — Cost
   # Explorer doesn't support resource-level ARN scoping here either, same
   # tradeoff as the other billing/org-wide services above.

@@ -45,3 +45,9 @@ variable "sso_username" {
   description = "IAM Identity Center username to grant AdministratorAccess to on every account (identity_center.tf). The user itself is created by hand in the console, not by Terraform — see README — so this must match whatever username you set there exactly, or the aws_identitystore_user lookup fails."
   type        = string
 }
+
+variable "personal_domain_name" {
+  description = "Domain name for the shared apex hosted zone (dns.tf). Deliberately not in terraform.tfvars — supplied via the PERSONAL_DOMAIN_NAME GitHub Actions secret in CI (TF_VAR_personal_domain_name, plan job only) and via emails.auto.tfvars locally. sensitive = true additionally keeps it out of plan/apply console output, on top of it being a real GitHub secret now rather than just a redacted-output value."
+  type        = string
+  sensitive   = true
+}

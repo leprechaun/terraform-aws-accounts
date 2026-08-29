@@ -10,3 +10,7 @@ existing_account_name = "lmacguire-sub-01"
 close_on_deletion = false
 
 sso_username = "lmac"
+
+# personal_domain_name is intentionally not set here — see the
+# PERSONAL_DOMAIN_NAME GitHub Actions secret and README. Locally, add it to
+# emails.auto.tfvars (already gitignored) instead.
