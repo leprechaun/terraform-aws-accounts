@@ -238,6 +238,17 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     actions   = ["identitystore:Describe*", "identitystore:List*", "identitystore:Get*"]
     resources = ["*"]
   }
+
+  # cost_allocation_tags.tf's aws_ce_cost_allocation_tag resources —
+  # UpdateCostAllocationTagsStatus is the actual activate/deactivate call;
+  # List is needed for refresh, same as the plan role. No resource-level
+  # ARN scoping for Cost Explorer, same tradeoff as elsewhere in this file.
+  statement {
+    sid       = "CostAllocationTags"
+    effect    = "Allow"
+    actions   = ["ce:ListCostAllocationTags", "ce:UpdateCostAllocationTagsStatus"]
+    resources = ["*"]
+  }
 }
 
 resource "aws_iam_role_policy" "github_actions" {

@@ -109,6 +109,16 @@ data "aws_iam_policy_document" "github_actions_plan_permissions" {
     resources = ["*"]
   }
 
+  # cost_allocation_tags.tf's aws_ce_cost_allocation_tag resources — Cost
+  # Explorer doesn't support resource-level ARN scoping here either, same
+  # tradeoff as the other billing/org-wide services above.
+  statement {
+    sid       = "CostAllocationTagsRead"
+    effect    = "Allow"
+    actions   = ["ce:ListCostAllocationTags"]
+    resources = ["*"]
+  }
+
   # identity_center.tf's permission set / account assignments / instance
   # and user lookups — resource-level ARN scoping isn't consistently
   # supported across these actions, same tradeoff as Organizations/
