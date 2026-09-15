@@ -103,6 +103,31 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     ]
   }
 
+  # aws_ssoadmin_account_assignment provisioning checks the auto-managed
+  # AWSSSO_..._DO_NOT_DELETE SAML provider using the *calling principal's*
+  # own IAM permissions rather than a service-linked role, at least when the
+  # target account is this one (the management account, where this role
+  # also lives) — hit as a real 403 (iam:GetSAMLProvider) when assigning the
+  # ReadOnlyAccess permission set here. AWS manages the provider itself
+  # (creation, rotation); this is read-only visibility into it, not control
+  # over it.
+  statement {
+    sid       = "IdentityCenterSamlProviderRead"
+    effect    = "Allow"
+    actions   = ["iam:GetSAMLProvider"]
+    resources = ["arn:aws:iam::${var.owner_account_id}:saml-provider/*"]
+  }
+
+  # ListSAMLProviders has no resource-level scoping — its request context is
+  # always account-wide regardless of what ARN a policy names, so this has
+  # to be its own "*" statement rather than folded into the one above.
+  statement {
+    sid       = "IdentityCenterSamlProviderList"
+    effect    = "Allow"
+    actions   = ["iam:ListSAMLProviders"]
+    resources = ["*"]
+  }
+
   # This state also manages the krapao-reviews-github-actions role (imported
   # in krapao_reviews_role.tf, previously owned by a different state) — same
   # read/write action set as SelfManageGithubActionsRole above, just scoped
