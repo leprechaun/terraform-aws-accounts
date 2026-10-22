@@ -26,6 +26,8 @@ jobs:
     # never touches this secret at all.
     env:
       TF_VAR_personal_domain_name: ${{ secrets.PERSONAL_DOMAIN_NAME }}
+    outputs:
+      has_changes: ${{ steps.plan.outputs.has_changes }}
     steps:
       - uses: actions/checkout@v7
 
@@ -38,9 +40,18 @@ jobs:
 
       - run: terraform init -input=false
 
-      - run: terraform plan -input=false -out=tfplan
+      # -detailed-exitcode: 0 = no changes, 1 = error, 2 = changes present.
+      # A no-op plan skips apply entirely, so there's no prod approval
+      # prompt (or its notification) for a run that would do nothing.
+      - id: plan
+        run: |
+          ec=0
+          terraform plan -input=false -detailed-exitcode -out=tfplan || ec=$?
+          [ "$ec" -eq 1 ] && exit 1
+          echo "has_changes=$([ "$ec" -eq 2 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/upload-artifact@v7
+      - if: steps.plan.outputs.has_changes == 'true'
+        uses: actions/upload-artifact@v7
         with:
           name: tfplan
           path: tfplan
@@ -48,7 +59,7 @@ jobs:
 
   apply:
     needs: plan
-    if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/master' && needs.plan.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
     # Configure this environment in GitHub repo Settings > Environments with
     # required reviewers, so apply pauses for manual approval before running.
