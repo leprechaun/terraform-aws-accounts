@@ -200,6 +200,29 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     ]
   }
 
+  # Same as ManageKbankEmailNotificationsGithubActionsRole above.
+  statement {
+    sid    = "ManageGlobalWebhooksGithubActionsRole"
+    effect = "Allow"
+    actions = [
+      "iam:GetRole",
+      "iam:GetRolePolicy",
+      "iam:ListRolePolicies",
+      "iam:ListAttachedRolePolicies",
+      "iam:ListInstanceProfilesForRole",
+      "iam:PutRolePolicy",
+      "iam:DeleteRolePolicy",
+      "iam:UpdateAssumeRolePolicy",
+      "iam:TagRole",
+      "iam:UntagRole",
+      "iam:CreateRole",
+      "iam:DeleteRole",
+    ]
+    resources = [
+      "arn:aws:iam::${var.owner_account_id}:role/${local.global_webhooks_github_actions_role_name}",
+    ]
+  }
+
   statement {
     sid       = "TerraformStateObjects"
     effect    = "Allow"

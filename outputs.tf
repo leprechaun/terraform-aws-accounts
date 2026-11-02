@@ -50,6 +50,10 @@ output "kbank_email_notifications_github_actions_role_arn" {
   value = aws_iam_role.kbank_email_notifications_github_actions.arn
 }
 
+output "global_webhooks_github_actions_role_arn" {
+  value = aws_iam_role.global_webhooks_github_actions.arn
+}
+
 output "personal_domain_zone_id" {
   value     = aws_route53_zone.personal_domain.zone_id
   sensitive = true
