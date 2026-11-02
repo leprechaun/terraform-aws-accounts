@@ -46,6 +46,10 @@ output "krapao_reviews_github_actions_role_arn" {
   value = aws_iam_role.krapao_reviews_github_actions.arn
 }
 
+output "kbank_email_notifications_github_actions_role_arn" {
+  value = aws_iam_role.kbank_email_notifications_github_actions.arn
+}
+
 output "personal_domain_zone_id" {
   value     = aws_route53_zone.personal_domain.zone_id
   sensitive = true

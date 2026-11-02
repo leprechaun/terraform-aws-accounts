@@ -176,6 +176,30 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     ]
   }
 
+  # Same lifecycle as the plan role above, but named by string rather than by
+  # reference: the kbank role depends_on this policy, so that CI can create it.
+  statement {
+    sid    = "ManageKbankEmailNotificationsGithubActionsRole"
+    effect = "Allow"
+    actions = [
+      "iam:GetRole",
+      "iam:GetRolePolicy",
+      "iam:ListRolePolicies",
+      "iam:ListAttachedRolePolicies",
+      "iam:ListInstanceProfilesForRole",
+      "iam:PutRolePolicy",
+      "iam:DeleteRolePolicy",
+      "iam:UpdateAssumeRolePolicy",
+      "iam:TagRole",
+      "iam:UntagRole",
+      "iam:CreateRole",
+      "iam:DeleteRole",
+    ]
+    resources = [
+      "arn:aws:iam::${var.owner_account_id}:role/${local.kbank_email_notifications_github_actions_role_name}",
+    ]
+  }
+
   statement {
     sid       = "TerraformStateObjects"
     effect    = "Allow"

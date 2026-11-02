@@ -71,6 +71,7 @@ data "aws_iam_policy_document" "github_actions_plan_permissions" {
       aws_iam_role.github_actions.arn,
       aws_iam_role.github_actions_plan.arn,
       aws_iam_role.krapao_reviews_github_actions.arn,
+      aws_iam_role.kbank_email_notifications_github_actions.arn,
     ]
   }
 
