@@ -148,9 +148,14 @@ data "aws_iam_policy_document" "kbank_email_notifications_github_actions_deploy"
   }
 
   statement {
-    sid       = "LambdaEventSourceMappingRead"
-    effect    = "Allow"
-    actions   = ["lambda:GetEventSourceMapping"]
+    sid    = "LambdaEventSourceMappingReadAndTag"
+    effect = "Allow"
+    actions = [
+      "lambda:GetEventSourceMapping",
+      "lambda:ListTags",
+      "lambda:TagResource",
+      "lambda:UntagResource",
+    ]
     resources = ["arn:aws:lambda:${local.kbank_email_notifications_region}:${var.owner_account_id}:event-source-mapping:*"]
   }
 
