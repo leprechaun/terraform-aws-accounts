@@ -9,13 +9,6 @@
 # Deliberately not a bootstrap: this can't create the bucket it stores its
 # own state in. A fresh setup still creates the bucket by hand first.
 
-# Safe to delete once applied, same as any import block.
-import {
-  provider = aws.ap_southeast_1
-  to       = aws_s3_bucket.terraform_state
-  id       = "lmacguire-terraform"
-}
-
 resource "aws_s3_bucket" "terraform_state" {
   provider = aws.ap_southeast_1
 
