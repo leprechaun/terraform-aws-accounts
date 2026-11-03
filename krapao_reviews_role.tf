@@ -20,14 +20,16 @@ data "aws_iam_policy_document" "krapao_reviews_github_actions_assume_role" {
       values   = ["sts.amazonaws.com"]
     }
 
-    # Unlike this repo's own CI role, this trusts the entire
-    # leprechaun/krapao-reviews repo (any branch, any event) rather than
-    # scoping to specific PR/environment subjects — matches the real trust
-    # policy, not a tightened guess.
+    # Only the deploy-dev and deploy-prod jobs, which set `environment:`. These
+    # are the only subjects CloudTrail shows assuming this role, in the
+    # plain-name form rather than the immutable-ID one.
     condition {
-      test     = "StringLike"
+      test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:leprechaun/krapao-reviews:*"]
+      values = [
+        "repo:leprechaun/krapao-reviews:environment:dev",
+        "repo:leprechaun/krapao-reviews:environment:prod",
+      ]
     }
   }
 }
@@ -45,25 +47,41 @@ resource "aws_iam_role" "krapao_reviews_github_actions" {
   }
 }
 
-# Confirmed to match the real inline policy exactly via
+# Originally written from the real inline policy via
 # `aws iam get-role-policy --role-name krapao-reviews-github-actions
-# --policy-name deploy` — same Sids, same actions, same resources. Not a
-# guess.
+# --policy-name deploy`. The state statements have since been narrowed from
+# the whole bucket to this project's own keys.
 data "aws_iam_policy_document" "krapao_reviews_github_actions_deploy" {
+  # infra/backend.tf: key "terraform.tfstate" under workspace_key_prefix
+  # "krapao-reviews". The pipeline must set TF_WORKSPACE, so init never reads
+  # the default workspace's key at the bucket root, which this role can't.
   statement {
-    sid    = "TerraformState"
-    effect = "Allow"
-    actions = [
-      "s3:PutObject",
-      "s3:ListBucket",
-      "s3:GetObject",
-      "s3:GetBucketVersioning",
-      "s3:DeleteObject",
-    ]
-    resources = [
-      "arn:aws:s3:::lmacguire-terraform/*",
-      "arn:aws:s3:::lmacguire-terraform",
-    ]
+    sid       = "TerraformStateObjects"
+    effect    = "Allow"
+    actions   = ["s3:GetObject", "s3:PutObject"]
+    resources = ["arn:aws:s3:::lmacguire-terraform/krapao-reviews/*/terraform.tfstate"]
+  }
+
+  # The backend doesn't set use_lockfile yet; this is ready for when it does.
+  statement {
+    sid       = "TerraformStateLock"
+    effect    = "Allow"
+    actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+    resources = ["arn:aws:s3:::lmacguire-terraform/krapao-reviews/*/terraform.tfstate.tflock"]
+  }
+
+  # Enumerating workspaces lists workspace_key_prefix.
+  statement {
+    sid       = "TerraformStateBucketList"
+    effect    = "Allow"
+    actions   = ["s3:ListBucket"]
+    resources = ["arn:aws:s3:::lmacguire-terraform"]
+
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = ["krapao-reviews/*"]
+    }
   }
 
   statement {

@@ -57,20 +57,25 @@ resource "aws_iam_role" "kbank_email_notifications_github_actions" {
 }
 
 data "aws_iam_policy_document" "kbank_email_notifications_github_actions_deploy" {
-  # infra/main.tf's backend: key "kbank-notifications", under the default
-  # "env:" workspace prefix for the dev and prod workspaces.
+  # infra/main.tf's backend: key "terraform.tfstate" under workspace_key_prefix
+  # "kbank-notifications". The pipeline sets TF_WORKSPACE, so init never reads
+  # the default workspace's key at the bucket root, which this role can't.
   statement {
-    sid     = "TerraformStateObjects"
-    effect  = "Allow"
-    actions = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
-    resources = [
-      "arn:aws:s3:::lmacguire-terraform/kbank-notifications*",
-      "arn:aws:s3:::lmacguire-terraform/env:/*/kbank-notifications*",
-    ]
+    sid       = "TerraformStateObjects"
+    effect    = "Allow"
+    actions   = ["s3:GetObject", "s3:PutObject"]
+    resources = ["arn:aws:s3:::lmacguire-terraform/kbank-notifications/*/terraform.tfstate"]
   }
 
-  # `terraform workspace select` lists every workspace under "env:/", so this
-  # exposes other projects' workspace key names, but not their contents.
+  # The backend doesn't set use_lockfile yet; this is ready for when it does.
+  statement {
+    sid       = "TerraformStateLock"
+    effect    = "Allow"
+    actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+    resources = ["arn:aws:s3:::lmacguire-terraform/kbank-notifications/*/terraform.tfstate.tflock"]
+  }
+
+  # Enumerating workspaces lists workspace_key_prefix.
   statement {
     sid       = "TerraformStateBucketList"
     effect    = "Allow"
@@ -80,7 +85,7 @@ data "aws_iam_policy_document" "kbank_email_notifications_github_actions_deploy"
     condition {
       test     = "StringLike"
       variable = "s3:prefix"
-      values   = ["kbank-notifications*", "env:/*"]
+      values   = ["kbank-notifications/*"]
     }
   }
 

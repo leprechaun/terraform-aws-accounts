@@ -53,10 +53,13 @@ data "aws_iam_policy_document" "management_aws_github_actions_plan_permissions" 
   # This state holds the Cognito client secrets, so anything that can assume
   # this role can read them, despite the role being read-only.
   statement {
-    sid       = "TerraformStateRead"
-    effect    = "Allow"
-    actions   = ["s3:GetObject"]
-    resources = ["arn:aws:s3:::lmacguire-terraform/management-aws/*"]
+    sid     = "TerraformStateRead"
+    effect  = "Allow"
+    actions = ["s3:GetObject"]
+    resources = [
+      "arn:aws:s3:::lmacguire-terraform/management-aws/*/terraform.tfstate",
+      "arn:aws:s3:::lmacguire-terraform/management-aws/*/terraform.tfstate.tflock",
+    ]
   }
 
   # Plan takes and releases the native S3 lock, but never writes the state.
@@ -64,7 +67,7 @@ data "aws_iam_policy_document" "management_aws_github_actions_plan_permissions" 
     sid       = "TerraformStateLock"
     effect    = "Allow"
     actions   = ["s3:PutObject", "s3:DeleteObject"]
-    resources = ["arn:aws:s3:::lmacguire-terraform/management-aws/*.tflock"]
+    resources = ["arn:aws:s3:::lmacguire-terraform/management-aws/*/terraform.tfstate.tflock"]
   }
 
   # `terraform init` lists "env:/" to enumerate workspaces, even when only

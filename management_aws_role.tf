@@ -58,12 +58,19 @@ resource "aws_iam_role" "management_aws_github_actions" {
 }
 
 data "aws_iam_policy_document" "management_aws_github_actions_deploy" {
-  # Covers management-aws/ses and management-aws/website, plus their .tflock.
+  # One state per stack: management-aws/<stack>/terraform.tfstate.
   statement {
     sid       = "TerraformStateObjects"
     effect    = "Allow"
+    actions   = ["s3:GetObject", "s3:PutObject"]
+    resources = ["arn:aws:s3:::lmacguire-terraform/management-aws/*/terraform.tfstate"]
+  }
+
+  statement {
+    sid       = "TerraformStateLock"
+    effect    = "Allow"
     actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
-    resources = ["arn:aws:s3:::lmacguire-terraform/management-aws/*"]
+    resources = ["arn:aws:s3:::lmacguire-terraform/management-aws/*/terraform.tfstate.tflock"]
   }
 
   # `terraform init` lists "env:/" to enumerate workspaces, even when only

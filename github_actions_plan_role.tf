@@ -159,10 +159,13 @@ data "aws_iam_policy_document" "github_actions_plan_permissions" {
   # writes the state itself — Put/Delete are scoped to just the .tflock
   # object, never the real state key.
   statement {
-    sid       = "TerraformStateRead"
-    effect    = "Allow"
-    actions   = ["s3:GetObject"]
-    resources = ["arn:aws:s3:::lmacguire-terraform/terraform-aws-accounts/*"]
+    sid     = "TerraformStateRead"
+    effect  = "Allow"
+    actions = ["s3:GetObject"]
+    resources = [
+      "arn:aws:s3:::lmacguire-terraform/terraform-aws-accounts/terraform.tfstate",
+      "arn:aws:s3:::lmacguire-terraform/terraform-aws-accounts/terraform.tfstate.tflock",
+    ]
   }
 
   statement {
@@ -170,19 +173,6 @@ data "aws_iam_policy_document" "github_actions_plan_permissions" {
     effect    = "Allow"
     actions   = ["s3:PutObject", "s3:DeleteObject"]
     resources = ["arn:aws:s3:::lmacguire-terraform/terraform-aws-accounts/terraform.tfstate.tflock"]
-  }
-
-  statement {
-    sid       = "TerraformStateBucketList"
-    effect    = "Allow"
-    actions   = ["s3:ListBucket"]
-    resources = ["arn:aws:s3:::lmacguire-terraform"]
-
-    condition {
-      test     = "StringLike"
-      variable = "s3:prefix"
-      values   = ["terraform-aws-accounts/*"]
-    }
   }
 
   # Read-only equivalent of TerraformStateBucketConfig in github_oidc.tf.

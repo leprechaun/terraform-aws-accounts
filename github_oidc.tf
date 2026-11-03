@@ -247,31 +247,28 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     ]
   }
 
+  # Terraform never deletes a state file, so only the lock gets s3:DeleteObject.
+  # Apply writes state after changing this policy, so a wrong key here leaves
+  # that run unable to save its state.
   statement {
-    sid       = "TerraformStateObjects"
+    sid       = "TerraformStateObject"
     effect    = "Allow"
-    actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
-    resources = ["arn:aws:s3:::lmacguire-terraform/terraform-aws-accounts/*"]
+    actions   = ["s3:GetObject", "s3:PutObject"]
+    resources = ["arn:aws:s3:::lmacguire-terraform/terraform-aws-accounts/terraform.tfstate"]
   }
 
   statement {
-    sid       = "TerraformStateBucketList"
+    sid       = "TerraformStateLock"
     effect    = "Allow"
-    actions   = ["s3:ListBucket"]
-    resources = ["arn:aws:s3:::lmacguire-terraform"]
-
-    condition {
-      test     = "StringLike"
-      variable = "s3:prefix"
-      values   = ["terraform-aws-accounts/*"]
-    }
+    actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+    resources = ["arn:aws:s3:::lmacguire-terraform/terraform-aws-accounts/terraform.tfstate.tflock"]
   }
 
   # terraform_state_bucket.tf. Not the s3:* the buckets below get, because
   # this one holds every repo's state: read its config and set its tags, but
   # no s3:DeleteBucket. Get* matches nothing object-level on a bucket ARN.
-  # s3:ListBucket is unconditional because HeadBucket has no s3:prefix to
-  # satisfy TerraformStateBucketList above.
+  # s3:ListBucket is unconditional because HeadBucket sends no s3:prefix to
+  # scope it by, and it also covers the backend's own listing.
   statement {
     sid       = "TerraformStateBucketConfig"
     effect    = "Allow"

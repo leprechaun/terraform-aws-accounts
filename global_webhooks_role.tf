@@ -61,13 +61,19 @@ resource "aws_iam_role" "global_webhooks_github_actions" {
 }
 
 data "aws_iam_policy_document" "global_webhooks_github_actions_deploy" {
-  # The backend's key isn't known from here, so this matches on the project
-  # name instead of an exact key. Also covers the .tflock variant.
+  # State lives at global-webhooks/<workspace>/terraform.tfstate.
   statement {
     sid       = "TerraformStateObjects"
     effect    = "Allow"
+    actions   = ["s3:GetObject", "s3:PutObject"]
+    resources = ["arn:aws:s3:::lmacguire-terraform/global-webhooks/*/terraform.tfstate"]
+  }
+
+  statement {
+    sid       = "TerraformStateLock"
+    effect    = "Allow"
     actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
-    resources = ["arn:aws:s3:::lmacguire-terraform/*webhooks*"]
+    resources = ["arn:aws:s3:::lmacguire-terraform/global-webhooks/*/terraform.tfstate.tflock"]
   }
 
   # `terraform init` lists "env:/" to enumerate workspaces, even when only
@@ -81,7 +87,7 @@ data "aws_iam_policy_document" "global_webhooks_github_actions_deploy" {
     condition {
       test     = "StringLike"
       variable = "s3:prefix"
-      values   = ["*webhooks*", "env:/*"]
+      values   = ["global-webhooks/*", "env:/*"]
     }
   }
 
