@@ -253,8 +253,8 @@ data "aws_iam_policy_document" "global_webhooks_github_actions_deploy" {
     resources = ["arn:aws:s3:::lmacguire-firehose"]
   }
 
-  # force_destroy on that bucket empties it first. No s3:GetObject, so the
-  # pipeline can't read the webhook payloads stored there.
+  # force_destroy on that bucket empties it first. No s3:GetObject, though
+  # s3:PutBucketPolicy above could still grant it.
   statement {
     sid       = "FirehoseDestinationBucketEmpty"
     effect    = "Allow"

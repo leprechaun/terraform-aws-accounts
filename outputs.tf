@@ -54,6 +54,14 @@ output "global_webhooks_github_actions_role_arn" {
   value = aws_iam_role.global_webhooks_github_actions.arn
 }
 
+output "management_aws_github_actions_role_arn" {
+  value = aws_iam_role.management_aws_github_actions.arn
+}
+
+output "management_aws_github_actions_plan_role_arn" {
+  value = aws_iam_role.management_aws_github_actions_plan.arn
+}
+
 output "personal_domain_zone_id" {
   value     = aws_route53_zone.personal_domain.zone_id
   sensitive = true

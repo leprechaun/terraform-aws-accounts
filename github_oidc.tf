@@ -223,6 +223,30 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     ]
   }
 
+  # Same as ManageKbankEmailNotificationsGithubActionsRole above.
+  statement {
+    sid    = "ManageManagementAwsGithubActionsRole"
+    effect = "Allow"
+    actions = [
+      "iam:GetRole",
+      "iam:GetRolePolicy",
+      "iam:ListRolePolicies",
+      "iam:ListAttachedRolePolicies",
+      "iam:ListInstanceProfilesForRole",
+      "iam:PutRolePolicy",
+      "iam:DeleteRolePolicy",
+      "iam:UpdateAssumeRolePolicy",
+      "iam:TagRole",
+      "iam:UntagRole",
+      "iam:CreateRole",
+      "iam:DeleteRole",
+    ]
+    resources = [
+      "arn:aws:iam::${var.owner_account_id}:role/${local.management_aws_github_actions_role_name}",
+      "arn:aws:iam::${var.owner_account_id}:role/${local.management_aws_github_actions_plan_role_name}",
+    ]
+  }
+
   statement {
     sid       = "TerraformStateObjects"
     effect    = "Allow"
@@ -241,6 +265,18 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       variable = "s3:prefix"
       values   = ["terraform-aws-accounts/*"]
     }
+  }
+
+  # terraform_state_bucket.tf. Not the s3:* the buckets below get, because
+  # this one holds every repo's state: read its config and set its tags, but
+  # no s3:DeleteBucket. Get* matches nothing object-level on a bucket ARN.
+  # s3:ListBucket is unconditional because HeadBucket has no s3:prefix to
+  # satisfy TerraformStateBucketList above.
+  statement {
+    sid       = "TerraformStateBucketConfig"
+    effect    = "Allow"
+    actions   = ["s3:Get*", "s3:ListBucket", "s3:PutBucketTagging"]
+    resources = ["arn:aws:s3:::lmacguire-terraform"]
   }
 
   statement {

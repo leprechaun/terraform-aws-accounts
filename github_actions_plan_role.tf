@@ -73,6 +73,8 @@ data "aws_iam_policy_document" "github_actions_plan_permissions" {
       aws_iam_role.krapao_reviews_github_actions.arn,
       aws_iam_role.kbank_email_notifications_github_actions.arn,
       aws_iam_role.global_webhooks_github_actions.arn,
+      aws_iam_role.management_aws_github_actions.arn,
+      aws_iam_role.management_aws_github_actions_plan.arn,
     ]
   }
 
@@ -181,6 +183,14 @@ data "aws_iam_policy_document" "github_actions_plan_permissions" {
       variable = "s3:prefix"
       values   = ["terraform-aws-accounts/*"]
     }
+  }
+
+  # Read-only equivalent of TerraformStateBucketConfig in github_oidc.tf.
+  statement {
+    sid       = "TerraformStateBucketConfigRead"
+    effect    = "Allow"
+    actions   = ["s3:Get*", "s3:ListBucket"]
+    resources = ["arn:aws:s3:::lmacguire-terraform"]
   }
 }
 
