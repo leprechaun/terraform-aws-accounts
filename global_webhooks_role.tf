@@ -76,8 +76,7 @@ data "aws_iam_policy_document" "global_webhooks_github_actions_deploy" {
     resources = ["arn:aws:s3:::lmacguire-terraform/global-webhooks/*/terraform.tfstate.tflock"]
   }
 
-  # `terraform init` lists "env:/" to enumerate workspaces, even when only
-  # default is used.
+  # Enumerating workspaces lists workspace_key_prefix.
   statement {
     sid       = "TerraformStateBucketList"
     effect    = "Allow"
@@ -87,7 +86,7 @@ data "aws_iam_policy_document" "global_webhooks_github_actions_deploy" {
     condition {
       test     = "StringLike"
       variable = "s3:prefix"
-      values   = ["global-webhooks/*", "env:/*"]
+      values   = ["global-webhooks/*"]
     }
   }
 
