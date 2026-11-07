@@ -144,6 +144,15 @@ data "aws_iam_policy_document" "management_aws_github_actions_plan_permissions" 
     resources = ["arn:aws:cloudfront::${var.owner_account_id}:distribution/*"]
   }
 
+  # The website looks up a managed cache policy by name, which lists policies to
+  # find the ID and then reads it.
+  statement {
+    sid       = "CloudFrontCachePolicyRead"
+    effect    = "Allow"
+    actions   = ["cloudfront:GetCachePolicy", "cloudfront:ListCachePolicies"]
+    resources = ["arn:aws:cloudfront::${var.owner_account_id}:cache-policy/*"]
+  }
+
   # s3:Get*/List* for the same reason as CloudTrailAndCostExportBucketsRead in
   # github_actions_plan_role.tf, but on the bucket ARNs only, which excludes
   # object actions.

@@ -235,6 +235,15 @@ data "aws_iam_policy_document" "management_aws_github_actions_deploy" {
     resources = ["arn:aws:cloudfront::${var.owner_account_id}:distribution/*"]
   }
 
+  # The website looks up a managed cache policy by name, which lists policies to
+  # find the ID and then reads it.
+  statement {
+    sid       = "CloudFrontCachePolicyRead"
+    effect    = "Allow"
+    actions   = ["cloudfront:GetCachePolicy", "cloudfront:ListCachePolicies"]
+    resources = ["arn:aws:cloudfront::${var.owner_account_id}:cache-policy/*"]
+  }
+
   # The website's standard logging target, which is also the CloudTrail bucket.
   # Read-only on purpose: this role shouldn't be able to change who can write
   # to or read audit logs.
