@@ -11,6 +11,12 @@ permissions:
 # terraform.tfvars is committed, so no TF_VAR_* plumbing is needed here —
 # only the deploy role ARN, which stays a repo variable since the OIDC role
 # doesn't exist until the first local apply (see README).
+#
+# Two kinds of stack: the management stack (the repo root), and one per
+# member account under accounts/, each applied from inside its own account
+# with the roles modules/member-baseline creates there. All plans run side
+# by side; on master, the member applies wait for the management apply,
+# since member stacks rely on things it owns (e.g. the state bucket policy).
 
 jobs:
   # Runs on every push, to every branch, unattended (no environment gate) —
@@ -19,7 +25,7 @@ jobs:
   # computed at approval time (which could've drifted in between). Only
   # master's plan artifact ever gets consumed by apply; every other
   # branch's just expires unused after a day.
-  plan:
+  plan-management:
     runs-on: ubuntu-latest
     # Only plan needs this — apply downloads and applies the exact saved
     # plan file below, which already has variable values baked in, so it
@@ -57,9 +63,9 @@ jobs:
           path: tfplan
           retention-days: 1
 
-  apply:
-    needs: plan
-    if: github.ref == 'refs/heads/master' && needs.plan.outputs.has_changes == 'true'
+  apply-management:
+    needs: plan-management
+    if: github.ref == 'refs/heads/master' && needs.plan-management.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
     # Configure this environment in GitHub repo Settings > Environments with
     # required reviewers, so apply pauses for manual approval before running.
@@ -79,5 +85,140 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: tfplan
+
+      - run: terraform apply -input=false tfplan
+
+  # Every accounts/<name> with an account_id in its terraform.tfvars.json. An
+  # empty one means the account hasn't been bootstrapped yet (see README).
+  discover-members:
+    runs-on: ubuntu-latest
+    outputs:
+      accounts: ${{ steps.list.outputs.accounts }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - id: list
+        run: |
+          accounts="$(
+            for dir in accounts/*/; do
+              name="$(basename "$dir")"
+              id="$(jq -r '.account_id // ""' "$dir/terraform.tfvars.json")"
+              if [ -n "$id" ]; then
+                jq -cn --arg name "$name" --arg id "$id" \
+                  '{name: $name, id: $id, secret: ("MEMBER_TFVARS_" + ($name | ascii_upcase | gsub("-"; "_")))}'
+              fi
+            done | jq -cs .
+          )"
+          echo "accounts=$accounts" >> "$GITHUB_OUTPUT"
+
+  plan-members:
+    needs: discover-members
+    if: needs.discover-members.outputs.accounts != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        account: ${{ fromJSON(needs.discover-members.outputs.accounts) }}
+    defaults:
+      run:
+        working-directory: accounts/${{ matrix.account.name }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::${{ matrix.account.id }}:role/terraform-aws-accounts-plan
+          aws-region: us-east-1
+
+      - uses: hashicorp/setup-terraform@v4
+
+      # Variables kept out of the repo, as a JSON tfvars blob per account. Like
+      # TF_VAR_personal_domain_name above, only plan needs them: the saved
+      # plan carries them into apply.
+      - name: Write secret variables
+        env:
+          TFVARS: ${{ secrets[matrix.account.secret] }}
+        run: |
+          if [ -n "$TFVARS" ]; then
+            printf '%s' "$TFVARS" > secrets.auto.tfvars.json
+          fi
+
+      - run: terraform init -input=false
+
+      - id: plan
+        run: |
+          ec=0
+          terraform plan -input=false -detailed-exitcode -out=tfplan || ec=$?
+          [ "$ec" -eq 1 ] && exit 1
+          echo "has_changes=$([ "$ec" -eq 2 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      # The artifact's presence is what tells apply this account has changes:
+      # matrix jobs can't each set their own job output.
+      - if: steps.plan.outputs.has_changes == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: tfplan-${{ matrix.account.name }}
+          path: accounts/${{ matrix.account.name }}/tfplan
+          retention-days: 1
+
+  # Narrows the account list to the ones whose plan has changes, so apply
+  # doesn't ask for approval of no-ops.
+  changed-members:
+    needs: [discover-members, plan-members]
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    outputs:
+      accounts: ${{ steps.filter.outputs.accounts }}
+    steps:
+      # tfplan-* leaves out plan-management's artifact, which is plain tfplan.
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: tfplan-*
+          path: plans
+
+      - id: filter
+        env:
+          ACCOUNTS: ${{ needs.discover-members.outputs.accounts }}
+        run: |
+          changed="$( (ls plans 2>/dev/null || true) | sed 's/^tfplan-//' | jq -R . | jq -cs .)"
+          accounts="$(jq -c --argjson changed "$changed" 'map(select(.name as $n | $changed | index($n)))' <<<"$ACCOUNTS")"
+          echo "accounts=$accounts" >> "$GITHUB_OUTPUT"
+
+  # After apply-management, but also when it was skipped for having no
+  # changes. failure() covers every ancestor, so a failed management plan or
+  # apply stops this too.
+  apply-members:
+    needs: [apply-management, changed-members]
+    if: >-
+      !failure() && !cancelled()
+      && needs.changed-members.result == 'success'
+      && needs.changed-members.outputs.accounts != '[]'
+    runs-on: ubuntu-latest
+    # Same environment as apply-management, and the one the baseline's
+    # terraform-aws-accounts role trusts.
+    environment: prod
+    strategy:
+      fail-fast: false
+      matrix:
+        account: ${{ fromJSON(needs.changed-members.outputs.accounts) }}
+    defaults:
+      run:
+        working-directory: accounts/${{ matrix.account.name }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::${{ matrix.account.id }}:role/terraform-aws-accounts
+          aws-region: us-east-1
+
+      - uses: hashicorp/setup-terraform@v4
+
+      - run: terraform init -input=false
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: tfplan-${{ matrix.account.name }}
+          path: accounts/${{ matrix.account.name }}
 
       - run: terraform apply -input=false tfplan
