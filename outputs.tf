@@ -29,7 +29,7 @@ output "krapao_reviews_account_access_role_arn" {
 }
 
 output "lmac_sh_account_id" {
-  description = "Goes in accounts/lmac-sh/terraform.tfvars.json."
+  description = "Goes in accounts/lmac-sh/providers.tf and the lmac-sh jobs in .github/workflows/terraform.yml."
   value       = aws_organizations_account.lmac-sh.id
 }
 

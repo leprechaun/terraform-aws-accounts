@@ -1,0 +1,67 @@
+name: Member account plan
+
+# Called from terraform.yml once per member account (accounts/<name>): the
+# same unattended plan as plan-management, from inside the account with the
+# read-only role modules/member-baseline creates there.
+
+on:
+  workflow_call:
+    inputs:
+      name:
+        description: Directory under accounts/, and the artifact suffix.
+        type: string
+        required: true
+      account_id:
+        type: string
+        required: true
+    secrets:
+      tfvars:
+        description: Variables kept out of the repo, as a JSON tfvars blob.
+        required: false
+    outputs:
+      has_changes:
+        value: ${{ jobs.plan.outputs.has_changes }}
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      has_changes: ${{ steps.plan.outputs.has_changes }}
+    defaults:
+      run:
+        working-directory: accounts/${{ inputs.name }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::${{ inputs.account_id }}:role/terraform-aws-accounts-plan
+          aws-region: us-east-1
+
+      - uses: hashicorp/setup-terraform@v4
+
+      # Like TF_VAR_personal_domain_name in terraform.yml, only plan needs
+      # these: the saved plan carries them into apply.
+      - name: Write secret variables
+        env:
+          TFVARS: ${{ secrets.tfvars }}
+        run: |
+          if [ -n "$TFVARS" ]; then
+            printf '%s' "$TFVARS" > secrets.auto.tfvars.json
+          fi
+
+      - run: terraform init -input=false
+
+      - id: plan
+        run: |
+          ec=0
+          terraform plan -input=false -detailed-exitcode -out=tfplan || ec=$?
+          [ "$ec" -eq 1 ] && exit 1
+          echo "has_changes=$([ "$ec" -eq 2 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - if: steps.plan.outputs.has_changes == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: tfplan-${{ inputs.name }}
+          path: accounts/${{ inputs.name }}/tfplan
+          retention-days: 1
