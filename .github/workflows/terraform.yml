@@ -8,138 +8,172 @@ permissions:
   id-token: write
   contents: read
 
-# Every stack in this repo, in order: the management stack (the repo root),
-# then one per member account under accounts/. Each member stack runs from
-# inside its own account, with the roles modules/member-baseline creates
-# there, so a new account's first apply is local (see README) and its steps
-# only get added here after that.
+# Every stack in this repo, one after the other: the management stack (the
+# repo root), then one per member account under accounts/. Each stack gets a
+# plan job and an apply job:
 #
-# Two jobs. plan runs on every push, to every branch, unattended, and saves
-# each stack's plan; apply runs on master behind one approval and applies
-# exactly those saved plans, in the same order, skipping stacks with no
-# changes. A failed management plan or apply stops everything after it.
+#   plan-management -> apply-management -> plan-lmac-sh -> apply-lmac-sh
 #
-# The plan and deploy role ARNs for the management stack stay repo variables
-# since those roles don't exist until the first local apply (see README).
+# Plans run on every push, to every branch, unattended, and save the plan;
+# applies only run on master when that plan has changes, behind approval,
+# and apply exactly the saved plan, so what a reviewer approves is what gets
+# applied. Member plans wait for the management apply (or for it to be
+# skipped), since member stacks rely on things it owns. Anything failing
+# stops everything after it.
+#
+# Each member stack runs from inside its own account, with the roles
+# modules/member-baseline creates there, so a new account's first apply is
+# local (see README) and its jobs only get added here after that.
+#
+# The management stack's role ARNs stay repo variables since those roles
+# don't exist until the first local apply (see README).
 
 jobs:
-  plan:
+  plan-management:
     runs-on: ubuntu-latest
+    # Only plan needs this: apply runs the saved plan, which already has
+    # variable values baked in.
+    env:
+      TF_VAR_personal_domain_name: ${{ secrets.PERSONAL_DOMAIN_NAME }}
     outputs:
-      has_changes: ${{ steps.changes.outputs.has_changes }}
+      has_changes: ${{ steps.plan.outputs.has_changes }}
     steps:
       - uses: actions/checkout@v7
 
-      - uses: hashicorp/setup-terraform@v4
-        with:
-          # The default wrapper turns terraform's exit code 2 (plan has
-          # changes, from -detailed-exitcode) into 0, so no plan would ever
-          # count as having changes and apply would always be skipped.
-          terraform_wrapper: false
-
-      # Each plan step: -detailed-exitcode gives 0 = no changes, 1 = error,
-      # 2 = changes. A plan with changes goes to plans/<stack>/tfplan, and
-      # those files are what apply goes by.
-
-      # Management stack.
       - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_PLAN_ROLE_ARN }}
           aws-region: ap-southeast-1
 
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          # The default wrapper turns terraform's exit code 2 (plan has
+          # changes, from -detailed-exitcode) into 0, so has_changes below
+          # would always be false and apply always skipped.
+          terraform_wrapper: false
+
       - run: terraform init -input=false
 
-      # Only plan needs secret variables: the saved plan carries them into
-      # apply.
-      - name: Plan management
-        env:
-          TF_VAR_personal_domain_name: ${{ secrets.PERSONAL_DOMAIN_NAME }}
+      # -detailed-exitcode: 0 = no changes, 1 = error, 2 = changes present.
+      # A no-op plan skips apply entirely, so there's no approval prompt for
+      # a run that would do nothing.
+      - id: plan
         run: |
           ec=0
           terraform plan -input=false -detailed-exitcode -out=tfplan || ec=$?
           [ "$ec" -eq 1 ] && exit 1
-          if [ "$ec" -eq 2 ]; then
-            mkdir -p "$GITHUB_WORKSPACE/plans/management"
-            mv tfplan "$GITHUB_WORKSPACE/plans/management/"
-          fi
-
-      # lmac-sh.
-      - uses: aws-actions/configure-aws-credentials@v6
-        with:
-          role-to-assume: arn:aws:iam::167340562062:role/terraform-aws-accounts-plan
-          aws-region: us-east-1
-          unset-current-credentials: true
-
-      - name: Plan lmac-sh
-        working-directory: accounts/lmac-sh
-        env:
-          TFVARS: ${{ secrets.MEMBER_TFVARS_LMAC_SH }}
-        run: |
-          [ -n "$TFVARS" ] && printf '%s' "$TFVARS" > secrets.auto.tfvars.json
-          terraform init -input=false
-          ec=0
-          terraform plan -input=false -detailed-exitcode -out=tfplan || ec=$?
-          [ "$ec" -eq 1 ] && exit 1
-          if [ "$ec" -eq 2 ]; then
-            mkdir -p "$GITHUB_WORKSPACE/plans/lmac-sh"
-            mv tfplan "$GITHUB_WORKSPACE/plans/lmac-sh/"
-          fi
-
-      - id: changes
-        run: echo "has_changes=$([ -d plans ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "has_changes=$([ "$ec" -eq 2 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
       # Only master's ever gets applied; every other branch's just expires.
-      - if: steps.changes.outputs.has_changes == 'true'
+      - if: steps.plan.outputs.has_changes == 'true'
         uses: actions/upload-artifact@v7
         with:
-          name: plans
-          path: plans/
+          name: tfplan-management
+          path: tfplan
           retention-days: 1
 
-  apply:
-    needs: plan
-    if: github.ref == 'refs/heads/master' && needs.plan.outputs.has_changes == 'true'
+  apply-management:
+    needs: plan-management
+    if: github.ref == 'refs/heads/master' && needs.plan-management.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
     # Configure this environment in GitHub repo Settings > Environments with
-    # required reviewers, so apply pauses for manual approval before running.
-    # It's also what every apply role, management and member, trusts.
+    # required reviewers, so applies pause for manual approval. It's also what
+    # every apply role, management and member, trusts.
     environment: prod
     steps:
       - uses: actions/checkout@v7
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ap-southeast-1
 
       - uses: hashicorp/setup-terraform@v4
         with:
           terraform_wrapper: false
 
+      - run: terraform init -input=false
+
       - uses: actions/download-artifact@v8
         with:
-          name: plans
-          path: plans
+          name: tfplan-management
 
-      # Management stack.
-      - if: hashFiles('plans/management/tfplan') != ''
-        uses: aws-actions/configure-aws-credentials@v6
+      - run: terraform apply -input=false tfplan
+
+  # Member accounts. Each plan job needs the previous stack's apply job, and
+  # runs whether that apply ran or was skipped (no changes, or not master),
+  # but not if anything before it failed: failure() covers every ancestor.
+
+  plan-lmac-sh:
+    needs: apply-management
+    if: ${{ !failure() && !cancelled() }}
+    runs-on: ubuntu-latest
+    outputs:
+      has_changes: ${{ steps.plan.outputs.has_changes }}
+    defaults:
+      run:
+        working-directory: accounts/lmac-sh
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
-          aws-region: ap-southeast-1
+          role-to-assume: arn:aws:iam::167340562062:role/terraform-aws-accounts-plan
+          aws-region: us-east-1
 
-      - if: hashFiles('plans/management/tfplan') != ''
-        name: Apply management
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false
+
+      # Variables kept out of the repo, as a JSON tfvars blob.
+      - env:
+          TFVARS: ${{ secrets.MEMBER_TFVARS_LMAC_SH }}
+        run: printf '%s' "$TFVARS" > secrets.auto.tfvars.json
+
+      - run: terraform init -input=false
+
+      - id: plan
         run: |
-          terraform init -input=false
-          terraform apply -input=false "$GITHUB_WORKSPACE/plans/management/tfplan"
+          ec=0
+          terraform plan -input=false -detailed-exitcode -out=tfplan || ec=$?
+          [ "$ec" -eq 1 ] && exit 1
+          echo "has_changes=$([ "$ec" -eq 2 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
-      # lmac-sh.
-      - if: hashFiles('plans/lmac-sh/tfplan') != ''
-        uses: aws-actions/configure-aws-credentials@v6
+      - if: steps.plan.outputs.has_changes == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: tfplan-lmac-sh
+          path: accounts/lmac-sh/tfplan
+          retention-days: 1
+
+  apply-lmac-sh:
+    needs: plan-lmac-sh
+    if: >-
+      !failure() && !cancelled()
+      && github.ref == 'refs/heads/master'
+      && needs.plan-lmac-sh.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    environment: prod
+    defaults:
+      run:
+        working-directory: accounts/lmac-sh
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::167340562062:role/terraform-aws-accounts
           aws-region: us-east-1
-          unset-current-credentials: true
 
-      - if: hashFiles('plans/lmac-sh/tfplan') != ''
-        name: Apply lmac-sh
-        working-directory: accounts/lmac-sh
-        run: |
-          terraform init -input=false
-          terraform apply -input=false "$GITHUB_WORKSPACE/plans/lmac-sh/tfplan"
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false
+
+      - run: terraform init -input=false
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: tfplan-lmac-sh
+          path: accounts/lmac-sh
+
+      - run: terraform apply -input=false tfplan
