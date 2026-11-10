@@ -35,6 +35,13 @@ variable "krapao_reviews_account_email" {
   sensitive   = true
 }
 
+variable "lmac_sh_account_email" {
+  description = "Root email address for the lmac-sh sub-account. Only matters at creation time (email is ignore_changes'd afterward) — real value lives in the gitignored emails.auto.tfvars, never committed. Default is a harmless placeholder, not empty — see existing_account_email for why."
+  type        = string
+  default     = "unset@example.com"
+  sensitive   = true
+}
+
 variable "close_on_deletion" {
   description = "If true, destroying the new account resource in Terraform closes the AWS account instead of just removing it from the org. Keep false unless you mean it."
   type        = bool

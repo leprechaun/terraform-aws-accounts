@@ -65,7 +65,7 @@ resource "aws_ssoadmin_managed_policy_attachment" "read_only" {
 }
 
 # Every account both permission sets above get assigned to — management
-# account plus all three members. Same accounts for both AdministratorAccess
+# account plus all four members. Same accounts for both AdministratorAccess
 # and ReadOnlyAccess since this is a single-operator org; split into
 # per-account/per-permission-set target lists later if that ever stops
 # being true.
@@ -75,6 +75,7 @@ locals {
     lmacguire-sub-01 = aws_organizations_account.lmacguire-sub-01.id
     snacker-tracker  = aws_organizations_account.snacker-tracker.id
     krapao-reviews   = aws_organizations_account.krapao-reviews.id
+    lmac-sh          = aws_organizations_account.lmac-sh.id
   }
 }
 

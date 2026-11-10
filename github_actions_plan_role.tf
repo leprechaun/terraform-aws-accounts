@@ -79,6 +79,13 @@ data "aws_iam_policy_document" "github_actions_plan_permissions" {
   }
 
   statement {
+    sid       = "ReadPrivateWebsiteAuthBoundary"
+    effect    = "Allow"
+    actions   = ["iam:GetPolicy", "iam:GetPolicyVersion", "iam:ListPolicyVersions"]
+    resources = [local.private_website_auth_boundary_arn]
+  }
+
+  statement {
     sid       = "Sts"
     effect    = "Allow"
     actions   = ["sts:GetCallerIdentity"]

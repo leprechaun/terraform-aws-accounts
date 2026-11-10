@@ -114,10 +114,15 @@ data "aws_iam_policy_document" "management_aws_github_actions_plan_permissions" 
     sid    = "CognitoUserPoolRead"
     effect = "Allow"
     actions = [
+      "cognito-idp:DescribeIdentityProvider",
       "cognito-idp:DescribeUserPool",
       "cognito-idp:DescribeUserPoolClient",
+      "cognito-idp:GetGroup",
+      "cognito-idp:GetIdentityProviderByIdentifier",
       "cognito-idp:GetLogDeliveryConfiguration",
       "cognito-idp:GetUserPoolMfaConfig",
+      "cognito-idp:ListGroups",
+      "cognito-idp:ListIdentityProviders",
       "cognito-idp:ListTagsForResource",
       "cognito-idp:ListUserPoolClients",
     ]
@@ -153,14 +158,56 @@ data "aws_iam_policy_document" "management_aws_github_actions_plan_permissions" 
     resources = ["arn:aws:cloudfront::${var.owner_account_id}:cache-policy/*"]
   }
 
+  statement {
+    sid       = "CloudFrontOriginAccessControlRead"
+    effect    = "Allow"
+    actions   = ["cloudfront:GetOriginAccessControl"]
+    resources = ["arn:aws:cloudfront::${var.owner_account_id}:origin-access-control/*"]
+  }
+
+  statement {
+    sid    = "PrivateWebsiteAuthRoleRead"
+    effect = "Allow"
+    actions = [
+      "iam:GetRole",
+      "iam:GetRolePolicy",
+      "iam:ListAttachedRolePolicies",
+      "iam:ListRolePolicies",
+    ]
+    resources = [local.private_website_auth_role_arn]
+  }
+
+  # The code location GetFunction returns includes config.json and its client
+  # secret, which TerraformStateRead already exposes anyway.
+  statement {
+    sid     = "PrivateWebsiteAuthFunctionRead"
+    effect  = "Allow"
+    actions = ["lambda:Get*", "lambda:List*"]
+    resources = [
+      local.private_website_auth_function_arn,
+      "${local.private_website_auth_function_arn}:*",
+    ]
+  }
+
+  statement {
+    sid       = "PrivateWebsiteAuthBoundaryRead"
+    effect    = "Allow"
+    actions   = ["iam:GetPolicy", "iam:GetPolicyVersion"]
+    resources = [local.private_website_auth_boundary_arn]
+  }
+
   # s3:Get*/List* for the same reason as CloudTrailAndCostExportBucketsRead in
   # github_actions_plan_role.tf, but on the bucket ARNs only, which excludes
   # object actions.
   statement {
-    sid       = "BucketsRead"
-    effect    = "Allow"
-    actions   = ["s3:Get*", "s3:List*"]
-    resources = ["arn:aws:s3:::lmacguire-ses-incoming", "arn:aws:s3:::${var.personal_domain_name}"]
+    sid     = "BucketsRead"
+    effect  = "Allow"
+    actions = ["s3:Get*", "s3:List*"]
+    resources = [
+      "arn:aws:s3:::lmacguire-ses-incoming",
+      "arn:aws:s3:::${var.personal_domain_name}",
+      "arn:aws:s3:::${local.private_website_bucket_name}",
+    ]
   }
 
   # Delivery names embed generated IDs, and the classic *LogDelivery and resource

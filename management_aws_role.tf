@@ -122,7 +122,9 @@ data "aws_iam_policy_document" "management_aws_github_actions_deploy" {
         var.personal_domain_name,
         "www.${var.personal_domain_name}",
         "auth.${var.personal_domain_name}",
+        "login.${var.personal_domain_name}",
         "garbage.${var.personal_domain_name}",
+        "private.${var.personal_domain_name}",
         "_*.${var.personal_domain_name}",
         "*._domainkey.${var.personal_domain_name}",
       ]
@@ -171,21 +173,32 @@ data "aws_iam_policy_document" "management_aws_github_actions_deploy" {
     effect = "Allow"
     actions = [
       "cognito-idp:AddCustomAttributes",
+      "cognito-idp:CreateGroup",
+      "cognito-idp:CreateIdentityProvider",
       "cognito-idp:CreateUserPoolClient",
       "cognito-idp:CreateUserPoolDomain",
+      "cognito-idp:DeleteGroup",
+      "cognito-idp:DeleteIdentityProvider",
       "cognito-idp:DeleteUserPool",
       "cognito-idp:DeleteUserPoolClient",
       "cognito-idp:DeleteUserPoolDomain",
+      "cognito-idp:DescribeIdentityProvider",
       "cognito-idp:DescribeUserPool",
       "cognito-idp:DescribeUserPoolClient",
+      "cognito-idp:GetGroup",
+      "cognito-idp:GetIdentityProviderByIdentifier",
       "cognito-idp:GetLogDeliveryConfiguration",
       "cognito-idp:GetUserPoolMfaConfig",
+      "cognito-idp:ListGroups",
+      "cognito-idp:ListIdentityProviders",
       "cognito-idp:ListTagsForResource",
       "cognito-idp:ListUserPoolClients",
       "cognito-idp:SetLogDeliveryConfiguration",
       "cognito-idp:SetUserPoolMfaConfig",
       "cognito-idp:TagResource",
       "cognito-idp:UntagResource",
+      "cognito-idp:UpdateGroup",
+      "cognito-idp:UpdateIdentityProvider",
       "cognito-idp:UpdateUserPool",
       "cognito-idp:UpdateUserPoolClient",
       "cognito-idp:UpdateUserPoolDomain",
@@ -236,12 +249,161 @@ data "aws_iam_policy_document" "management_aws_github_actions_deploy" {
   }
 
   # The website looks up a managed cache policy by name, which lists policies to
-  # find the ID and then reads it.
+  # find the ID and then reads it. The private website creates its own. Policy
+  # IDs are generated, so there's nothing narrower to scope to.
   statement {
-    sid       = "CloudFrontCachePolicyRead"
-    effect    = "Allow"
-    actions   = ["cloudfront:GetCachePolicy", "cloudfront:ListCachePolicies"]
+    sid    = "CloudFrontCachePolicy"
+    effect = "Allow"
+    actions = [
+      "cloudfront:CreateCachePolicy",
+      "cloudfront:DeleteCachePolicy",
+      "cloudfront:GetCachePolicy",
+      "cloudfront:ListCachePolicies",
+      "cloudfront:UpdateCachePolicy",
+    ]
     resources = ["arn:aws:cloudfront::${var.owner_account_id}:cache-policy/*"]
+  }
+
+  statement {
+    sid    = "CloudFrontOriginAccessControl"
+    effect = "Allow"
+    actions = [
+      "cloudfront:CreateOriginAccessControl",
+      "cloudfront:DeleteOriginAccessControl",
+      "cloudfront:GetOriginAccessControl",
+      "cloudfront:UpdateOriginAccessControl",
+    ]
+    resources = ["arn:aws:cloudfront::${var.owner_account_id}:origin-access-control/*"]
+  }
+
+  # private_website_auth_boundary.tf. Anything that sets the role's
+  # permissions only works with the boundary attached, and there's no
+  # iam:DeleteRolePermissionsBoundary, so the role can never do more than it
+  # allows.
+  statement {
+    sid    = "PrivateWebsiteAuthRoleBounded"
+    effect = "Allow"
+    actions = [
+      "iam:CreateRole",
+      "iam:PutRolePermissionsBoundary",
+      "iam:PutRolePolicy",
+    ]
+    resources = [local.private_website_auth_role_arn]
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PermissionsBoundary"
+      values   = [local.private_website_auth_boundary_arn]
+    }
+  }
+
+  # Separate from the above because iam:PolicyARN is only present on
+  # attach/detach requests.
+  statement {
+    sid       = "PrivateWebsiteAuthRoleAttach"
+    effect    = "Allow"
+    actions   = ["iam:AttachRolePolicy"]
+    resources = [local.private_website_auth_role_arn]
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PermissionsBoundary"
+      values   = [local.private_website_auth_boundary_arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PolicyARN"
+      values   = ["arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"]
+    }
+  }
+
+  statement {
+    sid    = "PrivateWebsiteAuthRole"
+    effect = "Allow"
+    actions = [
+      "iam:DeleteRole",
+      "iam:DeleteRolePolicy",
+      "iam:DetachRolePolicy",
+      "iam:GetRole",
+      "iam:GetRolePolicy",
+      "iam:ListAttachedRolePolicies",
+      "iam:ListInstanceProfilesForRole",
+      "iam:ListRolePolicies",
+      "iam:TagRole",
+      "iam:UntagRole",
+      "iam:UpdateAssumeRolePolicy",
+      "iam:UpdateRole",
+    ]
+    resources = [local.private_website_auth_role_arn]
+  }
+
+  statement {
+    sid       = "PrivateWebsiteAuthRolePass"
+    effect    = "Allow"
+    actions   = ["iam:PassRole"]
+    resources = [local.private_website_auth_role_arn]
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PassedToService"
+      values   = ["lambda.amazonaws.com"]
+    }
+  }
+
+  # Get*/List* for the same reason as LambdaFunction in
+  # kbank_email_notifications_role.tf. Lambda@Edge functions must live in
+  # us-east-1; the :* ARN covers the published versions CloudFront references.
+  statement {
+    sid    = "PrivateWebsiteAuthFunction"
+    effect = "Allow"
+    actions = [
+      "lambda:CreateFunction",
+      "lambda:DeleteFunction",
+      "lambda:Get*",
+      "lambda:List*",
+      "lambda:PublishVersion",
+      "lambda:TagResource",
+      "lambda:UntagResource",
+      "lambda:UpdateFunctionCode",
+      "lambda:UpdateFunctionConfiguration",
+    ]
+    resources = [
+      local.private_website_auth_function_arn,
+      "${local.private_website_auth_function_arn}:*",
+    ]
+  }
+
+  # CloudFront replicates the function to edge locations with the caller's
+  # credentials when a distribution associates (or drops) a version.
+  statement {
+    sid       = "PrivateWebsiteAuthReplication"
+    effect    = "Allow"
+    actions   = ["lambda:EnableReplication*", "lambda:DisableReplication*"]
+    resources = ["${local.private_website_auth_function_arn}:*"]
+  }
+
+  # The first Lambda@Edge association creates these service-linked roles. A
+  # no-op once they exist.
+  statement {
+    sid       = "LambdaEdgeServiceLinkedRoles"
+    effect    = "Allow"
+    actions   = ["iam:CreateServiceLinkedRole"]
+    resources = ["arn:aws:iam::${var.owner_account_id}:role/aws-service-role/*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:AWSServiceName"
+      values   = ["replicator.lambda.amazonaws.com", "logger.cloudfront.amazonaws.com"]
+    }
+  }
+
+  # In case the stack looks the boundary up rather than hardcoding its ARN.
+  statement {
+    sid       = "PrivateWebsiteAuthBoundaryRead"
+    effect    = "Allow"
+    actions   = ["iam:GetPolicy", "iam:GetPolicyVersion"]
+    resources = [local.private_website_auth_boundary_arn]
   }
 
   # The website's standard logging target, which is also the CloudTrail bucket.
@@ -258,10 +420,14 @@ data "aws_iam_policy_document" "management_aws_github_actions_deploy" {
   # github_oidc.tf, but on the bucket ARNs only, which excludes object actions.
   # That isn't a hard boundary: s3:PutBucketPolicy could grant object access.
   statement {
-    sid       = "Buckets"
-    effect    = "Allow"
-    actions   = ["s3:*"]
-    resources = ["arn:aws:s3:::lmacguire-ses-incoming", "arn:aws:s3:::${var.personal_domain_name}"]
+    sid     = "Buckets"
+    effect  = "Allow"
+    actions = ["s3:*"]
+    resources = [
+      "arn:aws:s3:::lmacguire-ses-incoming",
+      "arn:aws:s3:::${var.personal_domain_name}",
+      "arn:aws:s3:::${local.private_website_bucket_name}",
+    ]
   }
 
   statement {

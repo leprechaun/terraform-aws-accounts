@@ -75,3 +75,30 @@ resource "aws_organizations_account" "krapao-reviews" {
 
   depends_on = [aws_organizations_organization.this]
 }
+
+# New sub-account, created by Terraform. What's inside it is managed by
+# accounts/lmac-sh, a separate stack that CI applies from within the account.
+resource "aws_organizations_account" "lmac-sh" {
+  name  = "lmac-sh"
+  email = var.lmac_sh_account_email
+
+  role_name         = "OrganizationAccountAccessRole"
+  close_on_deletion = var.close_on_deletion
+
+  lifecycle {
+    # Same as krapao-reviews above.
+    ignore_changes = [email]
+  }
+
+  tags = {
+    ManagedBy = "terraform"
+  }
+
+  depends_on = [aws_organizations_organization.this]
+}
+
+# In case it was created through the short-lived member-account module.
+moved {
+  from = module.lmac_sh.aws_organizations_account.this
+  to   = aws_organizations_account.lmac-sh
+}

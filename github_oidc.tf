@@ -247,6 +247,24 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     ]
   }
 
+  # private_website_auth_boundary.tf.
+  statement {
+    sid    = "ManagePrivateWebsiteAuthBoundary"
+    effect = "Allow"
+    actions = [
+      "iam:CreatePolicy",
+      "iam:CreatePolicyVersion",
+      "iam:DeletePolicy",
+      "iam:DeletePolicyVersion",
+      "iam:GetPolicy",
+      "iam:GetPolicyVersion",
+      "iam:ListPolicyVersions",
+      "iam:TagPolicy",
+      "iam:UntagPolicy",
+    ]
+    resources = [local.private_website_auth_boundary_arn]
+  }
+
   # Terraform never deletes a state file, so only the lock gets s3:DeleteObject.
   # Apply writes state after changing this policy, so a wrong key here leaves
   # that run unable to save its state.
@@ -265,14 +283,21 @@ data "aws_iam_policy_document" "github_actions_permissions" {
   }
 
   # terraform_state_bucket.tf. Not the s3:* the buckets below get, because
-  # this one holds every repo's state: read its config and set its tags, but
-  # no s3:DeleteBucket. Get* matches nothing object-level on a bucket ARN.
-  # s3:ListBucket is unconditional because HeadBucket sends no s3:prefix to
-  # scope it by, and it also covers the backend's own listing.
+  # this one holds every repo's state: read its config, set its tags and its
+  # policy (the member-account grants), but no s3:DeleteBucket. Get* matches
+  # nothing object-level on a bucket ARN. s3:ListBucket is unconditional
+  # because HeadBucket sends no s3:prefix to scope it by, and it also covers
+  # the backend's own listing.
   statement {
-    sid       = "TerraformStateBucketConfig"
-    effect    = "Allow"
-    actions   = ["s3:Get*", "s3:ListBucket", "s3:PutBucketTagging"]
+    sid    = "TerraformStateBucketConfig"
+    effect = "Allow"
+    actions = [
+      "s3:DeleteBucketPolicy",
+      "s3:Get*",
+      "s3:ListBucket",
+      "s3:PutBucketPolicy",
+      "s3:PutBucketTagging",
+    ]
     resources = ["arn:aws:s3:::lmacguire-terraform"]
   }
 

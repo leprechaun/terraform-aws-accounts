@@ -28,6 +28,16 @@ output "krapao_reviews_account_access_role_arn" {
   value       = "arn:aws:iam::${aws_organizations_account.krapao-reviews.id}:role/OrganizationAccountAccessRole"
 }
 
+output "lmac_sh_account_id" {
+  description = "Goes in accounts/lmac-sh/terraform.tfvars.json."
+  value       = aws_organizations_account.lmac-sh.id
+}
+
+output "lmac_sh_account_access_role_arn" {
+  description = "Role to assume from the owner account to operate inside the lmac-sh sub-account."
+  value       = "arn:aws:iam::${aws_organizations_account.lmac-sh.id}:role/OrganizationAccountAccessRole"
+}
+
 output "github_actions_role_arn" {
   description = "Set this as the AWS_DEPLOY_ROLE_ARN repository variable in GitHub Actions."
   value       = aws_iam_role.github_actions.arn
