@@ -29,7 +29,8 @@ resource "aws_s3_bucket" "terraform_state" {
 # recreated role would silently stop matching a principal entry.
 locals {
   member_accounts = {
-    lmac-sh = aws_organizations_account.lmac-sh.id
+    lmac-sh         = aws_organizations_account.lmac-sh.id
+    snacker-tracker = aws_organizations_account.snacker-tracker.id
   }
 }
 

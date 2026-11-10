@@ -8,11 +8,12 @@ permissions:
   id-token: write
   contents: read
 
-# Every stack in this repo, one after the other: the management stack (the
-# repo root), then one per member account under accounts/. Each stack gets a
-# plan job and an apply job:
+# Every stack in this repo: the management stack (the repo root) first,
+# then one per member account under accounts/, in parallel with each other.
+# Each stack gets a plan job and an apply job:
 #
-#   plan-management -> apply-management -> plan-lmac-sh -> apply-lmac-sh
+#   plan-management -> apply-management -+-> plan-lmac-sh -> apply-lmac-sh
+#                                        +-> plan-<name>  -> apply-<name>
 #
 # Plans run on every push, to every branch, unattended, and save the plan;
 # applies only run on master when that plan has changes, behind approval,
@@ -100,9 +101,10 @@ jobs:
 
       - run: terraform apply -input=false tfplan
 
-  # Member accounts. Each plan job needs the previous stack's apply job, and
-  # runs whether that apply ran or was skipped (no changes, or not master),
-  # but not if anything before it failed: failure() covers every ancestor.
+  # Member accounts. Each plan job needs apply-management (not another
+  # member's jobs, so accounts run in parallel), and runs whether that apply
+  # ran or was skipped (no changes, or not master), but not if anything
+  # before it failed: failure() covers every ancestor.
 
   plan-lmac-sh:
     needs: apply-management
@@ -175,5 +177,83 @@ jobs:
         with:
           name: tfplan-lmac-sh
           path: accounts/lmac-sh
+
+      - run: terraform apply -input=false tfplan
+
+  # snacker-tracker, in bootstrap mode: its own CI roles don't exist yet, so
+  # both jobs run as the management apply role (master only, behind
+  # approval), with -var bootstrap=true making the stack assume
+  # OrganizationAccountAccessRole. Once this has applied, swap in the regular
+  # jobs (copy lmac-sh's). The same swap the other way is how to recover an
+  # account whose CI roles are broken.
+  plan-snacker-tracker:
+    needs: apply-management
+    if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/master' }}
+    runs-on: ubuntu-latest
+    environment: prod
+    outputs:
+      has_changes: ${{ steps.plan.outputs.has_changes }}
+    defaults:
+      run:
+        working-directory: accounts/snacker-tracker
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false
+
+      - run: terraform init -input=false
+
+      - id: plan
+        run: |
+          ec=0
+          terraform plan -input=false -detailed-exitcode -var bootstrap=true -out=tfplan || ec=$?
+          [ "$ec" -eq 1 ] && exit 1
+          echo "has_changes=$([ "$ec" -eq 2 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - if: steps.plan.outputs.has_changes == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: tfplan-snacker-tracker
+          path: accounts/snacker-tracker/tfplan
+          retention-days: 1
+
+  apply-snacker-tracker:
+    needs: plan-snacker-tracker
+    if: >-
+      !failure() && !cancelled()
+      && github.ref == 'refs/heads/master'
+      && needs.plan-snacker-tracker.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    environment: prod
+    defaults:
+      run:
+        working-directory: accounts/snacker-tracker
+    steps:
+      - uses: actions/checkout@v7
+
+      # Same role as the plan job: the saved plan has bootstrap = true baked
+      # in, so its provider assumes OrganizationAccountAccessRole again.
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false
+
+      - run: terraform init -input=false
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: tfplan-snacker-tracker
+          path: accounts/snacker-tracker
 
       - run: terraform apply -input=false tfplan
