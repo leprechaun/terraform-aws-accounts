@@ -44,6 +44,8 @@ jobs:
           aws-region: ap-southeast-1
 
       - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false
 
       - name: Write secret variables
         if: inputs.tfvars_secret != ''

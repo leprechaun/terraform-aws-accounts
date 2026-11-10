@@ -39,6 +39,11 @@ jobs:
           aws-region: us-east-1
 
       - uses: hashicorp/setup-terraform@v4
+        with:
+          # The default wrapper turns terraform's exit code 2 (plan has
+          # changes, from -detailed-exitcode) into 0, so has_changes below
+          # would always be false and apply always skipped.
+          terraform_wrapper: false
 
       # Like TF_VAR_personal_domain_name in terraform.yml, only plan needs
       # these: the saved plan carries them into apply.

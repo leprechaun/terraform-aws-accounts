@@ -43,6 +43,11 @@ jobs:
           aws-region: ap-southeast-1
 
       - uses: hashicorp/setup-terraform@v4
+        with:
+          # The default wrapper turns terraform's exit code 2 (plan has
+          # changes, from -detailed-exitcode) into 0, so has_changes below
+          # would always be false and apply always skipped.
+          terraform_wrapper: false
 
       - run: terraform init -input=false
 
@@ -79,6 +84,8 @@ jobs:
           aws-region: ap-southeast-1
 
       - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false
 
       - run: terraform init -input=false
 

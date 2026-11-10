@@ -32,6 +32,8 @@ jobs:
           aws-region: us-east-1
 
       - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false
 
       - run: terraform init -input=false
 
