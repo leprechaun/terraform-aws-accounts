@@ -95,17 +95,16 @@ jobs:
   # management plan or apply stops them too. Plan after apply-management
   # instead once a member stack reads the management stack's state.
   #
-  # Add an account's pair only after its local bootstrap (see README),
-  # since these log in with roles that bootstrap creates.
+  # Add an account's pair only after bootstrap-member.yml has run for it
+  # (see README), since these log in with roles that bootstrap creates.
 
-  # lmac-sh: uncomment with its ID (management output lmac_sh_account_id)
-  # once bootstrapped.
+  # lmac-sh: uncomment once bootstrap-member.yml has run for it.
   #
   # plan-lmac-sh:
   #   uses: ./.github/workflows/member-plan.yml
   #   with:
   #     name: lmac-sh
-  #     account_id: "<lmac_sh_account_id>"
+  #     account_id: "167340562062"
   #   secrets:
   #     tfvars: ${{ secrets.MEMBER_TFVARS_LMAC_SH }}
   #
@@ -118,4 +117,4 @@ jobs:
   #   uses: ./.github/workflows/member-apply.yml
   #   with:
   #     name: lmac-sh
-  #     account_id: "<lmac_sh_account_id>"
+  #     account_id: "167340562062"

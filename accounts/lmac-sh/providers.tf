@@ -1,16 +1,26 @@
 locals {
   # The management stack's lmac_sh_account_id output. Also in
-  # .github/workflows/terraform.yml. Empty until the account exists, which
-  # makes the provider refuse to run.
-  account_id = ""
+  # .github/workflows/terraform.yml.
+  account_id = "167340562062"
 }
 
-# No assume_role: CI logs straight into this account with the baseline's
-# roles, and local runs use an SSO profile for it (see README).
+# Normally no assume_role: CI logs straight into this account with the
+# baseline's roles. With bootstrap = true, it runs with management-account
+# credentials instead and assumes OrganizationAccountAccessRole, for the
+# first apply that creates those roles (see README).
 provider "aws" {
   region = "us-east-1"
 
   allowed_account_ids = [local.account_id]
+
+  dynamic "assume_role" {
+    for_each = var.bootstrap ? [1] : []
+
+    content {
+      role_arn     = "arn:aws:iam::${local.account_id}:role/OrganizationAccountAccessRole"
+      session_name = "terraform-aws-accounts-bootstrap"
+    }
+  }
 
   default_tags {
     tags = {

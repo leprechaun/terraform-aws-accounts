@@ -1,0 +1,64 @@
+name: Bootstrap member account
+
+# A member-account stack's first apply, which creates the roles its regular
+# jobs in terraform.yml log in with. Also the way back in if a bad change
+# ever breaks those roles. Runs as the management apply role, with the
+# stack's provider assuming OrganizationAccountAccessRole (bootstrap = true).
+#
+# Run it from master (Actions > Bootstrap member account > Run workflow)
+# after apply-management has created the account and given this role its
+# MemberAccount* statements.
+
+on:
+  workflow_dispatch:
+    inputs:
+      name:
+        description: Directory under accounts/
+        type: string
+        required: true
+      tfvars_secret:
+        description: Repository secret holding the stack's secret variables as JSON (e.g. MEMBER_TFVARS_LMAC_SH), if it has any
+        type: string
+        required: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  bootstrap:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    # Unlike the regular jobs, the prod approval comes before the plan below
+    # exists. Fine for a run you start by hand.
+    environment: prod
+    defaults:
+      run:
+        working-directory: accounts/${{ inputs.name }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ap-southeast-1
+
+      - uses: hashicorp/setup-terraform@v4
+
+      - name: Write secret variables
+        if: inputs.tfvars_secret != ''
+        env:
+          TFVARS: ${{ secrets[inputs.tfvars_secret] }}
+          SECRET_NAME: ${{ inputs.tfvars_secret }}
+        run: |
+          if [ -z "$TFVARS" ]; then
+            echo "Secret $SECRET_NAME is empty or doesn't exist" >&2
+            exit 1
+          fi
+          printf '%s' "$TFVARS" > secrets.auto.tfvars.json
+
+      - run: terraform init -input=false
+
+      - run: terraform plan -input=false -var bootstrap=true -out=tfplan
+
+      - run: terraform apply -input=false tfplan
