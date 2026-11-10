@@ -5,9 +5,10 @@ locals {
 }
 
 # Normally no assume_role: CI logs straight into this account with the
-# baseline's roles. With bootstrap = true, it runs with management-account
-# credentials instead and assumes OrganizationAccountAccessRole, for the
-# first apply that creates those roles (see README).
+# baseline's roles. With bootstrap = true, it runs with your local
+# management-account credentials instead and assumes
+# OrganizationAccountAccessRole, for the first apply that creates those roles
+# (see README).
 provider "aws" {
   region = "us-east-1"
 

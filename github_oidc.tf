@@ -282,38 +282,6 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     resources = ["arn:aws:s3:::lmacguire-terraform/terraform-aws-accounts/terraform.tfstate.tflock"]
   }
 
-  # bootstrap-member.yml: a member-account stack's first apply (or recovery,
-  # if its CI roles are broken) runs as this role, with the stack's provider
-  # assuming OrganizationAccountAccessRole and its backend using this role
-  # directly. Org-scoped so new accounts need no edits. This role can already
-  # create and close accounts, so admin inside them adds little.
-  statement {
-    sid       = "MemberAccountState"
-    effect    = "Allow"
-    actions   = ["s3:GetObject", "s3:PutObject"]
-    resources = ["arn:aws:s3:::lmacguire-terraform/member-accounts/*/terraform.tfstate"]
-  }
-
-  statement {
-    sid       = "MemberAccountStateLock"
-    effect    = "Allow"
-    actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
-    resources = ["arn:aws:s3:::lmacguire-terraform/member-accounts/*/terraform.tfstate.tflock"]
-  }
-
-  statement {
-    sid       = "AssumeMemberAccountAccessRole"
-    effect    = "Allow"
-    actions   = ["sts:AssumeRole"]
-    resources = ["arn:aws:iam::*:role/OrganizationAccountAccessRole"]
-
-    condition {
-      test     = "StringEquals"
-      variable = "aws:ResourceOrgID"
-      values   = [aws_organizations_organization.this.id]
-    }
-  }
-
   # terraform_state_bucket.tf. Not the s3:* the buckets below get, because
   # this one holds every repo's state: read its config, set its tags and its
   # policy (the member-account grants), but no s3:DeleteBucket. Get* matches
