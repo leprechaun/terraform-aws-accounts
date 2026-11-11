@@ -180,17 +180,10 @@ jobs:
 
       - run: terraform apply -input=false tfplan
 
-  # snacker-tracker, in bootstrap mode: its own CI roles don't exist yet, so
-  # both jobs run as the management apply role (master only, behind
-  # approval), with -var bootstrap=true making the stack assume
-  # OrganizationAccountAccessRole. Once this has applied, swap in the regular
-  # jobs (copy lmac-sh's). The same swap the other way is how to recover an
-  # account whose CI roles are broken.
   plan-snacker-tracker:
     needs: apply-management
-    if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/master' }}
+    if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-latest
-    environment: prod
     outputs:
       has_changes: ${{ steps.plan.outputs.has_changes }}
     defaults:
@@ -201,7 +194,7 @@ jobs:
 
       - uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          role-to-assume: arn:aws:iam::132218943709:role/terraform-aws-accounts-plan
           aws-region: us-east-1
 
       - uses: hashicorp/setup-terraform@v4
@@ -213,7 +206,7 @@ jobs:
       - id: plan
         run: |
           ec=0
-          terraform plan -input=false -detailed-exitcode -var bootstrap=true -out=tfplan || ec=$?
+          terraform plan -input=false -detailed-exitcode -out=tfplan || ec=$?
           [ "$ec" -eq 1 ] && exit 1
           echo "has_changes=$([ "$ec" -eq 2 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
@@ -238,11 +231,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Same role as the plan job: the saved plan has bootstrap = true baked
-      # in, so its provider assumes OrganizationAccountAccessRole again.
       - uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          role-to-assume: arn:aws:iam::132218943709:role/terraform-aws-accounts
           aws-region: us-east-1
 
       - uses: hashicorp/setup-terraform@v4
