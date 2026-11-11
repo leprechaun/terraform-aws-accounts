@@ -23,8 +23,9 @@ permissions:
 # stops everything after it.
 #
 # Each member stack runs from inside its own account, with the roles
-# modules/member-baseline creates there, so a new account's first apply is
-# local (see README) and its jobs only get added here after that.
+# modules/member-baseline creates there. A new account's jobs start in
+# bootstrap mode (as the management apply role, through
+# OrganizationAccountAccessRole) until its first apply has created them.
 #
 # The management stack's role ARNs stay repo variables since those roles
 # don't exist until the first local apply (see README).
@@ -246,5 +247,161 @@ jobs:
         with:
           name: tfplan-snacker-tracker
           path: accounts/snacker-tracker
+
+      - run: terraform apply -input=false tfplan
+
+  # krapao-reviews, in bootstrap mode: its own CI roles don't exist yet, so both
+  # jobs run as the management apply role (master only, behind approval),
+  # with -var bootstrap=true making the stack assume
+  # OrganizationAccountAccessRole. Once this has applied, swap in the regular
+  # jobs (copy lmac-sh's). The same swap the other way is how to recover an
+  # account whose CI roles are broken.
+  plan-krapao-reviews:
+    needs: apply-management
+    if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/master' }}
+    runs-on: ubuntu-latest
+    environment: prod
+    outputs:
+      has_changes: ${{ steps.plan.outputs.has_changes }}
+    defaults:
+      run:
+        working-directory: accounts/krapao-reviews
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false
+
+      - run: terraform init -input=false
+
+      - id: plan
+        run: |
+          ec=0
+          terraform plan -input=false -detailed-exitcode -var bootstrap=true -out=tfplan || ec=$?
+          [ "$ec" -eq 1 ] && exit 1
+          echo "has_changes=$([ "$ec" -eq 2 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - if: steps.plan.outputs.has_changes == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: tfplan-krapao-reviews
+          path: accounts/krapao-reviews/tfplan
+          retention-days: 1
+
+  apply-krapao-reviews:
+    needs: plan-krapao-reviews
+    if: >-
+      !failure() && !cancelled()
+      && github.ref == 'refs/heads/master'
+      && needs.plan-krapao-reviews.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    environment: prod
+    defaults:
+      run:
+        working-directory: accounts/krapao-reviews
+    steps:
+      - uses: actions/checkout@v7
+
+      # Same role as the plan job: the saved plan has bootstrap = true baked
+      # in, so its provider assumes OrganizationAccountAccessRole again.
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false
+
+      - run: terraform init -input=false
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: tfplan-krapao-reviews
+          path: accounts/krapao-reviews
+
+      - run: terraform apply -input=false tfplan
+
+  # lmacguire-sub-01, in bootstrap mode: its own CI roles don't exist yet, so both
+  # jobs run as the management apply role (master only, behind approval),
+  # with -var bootstrap=true making the stack assume
+  # OrganizationAccountAccessRole. Once this has applied, swap in the regular
+  # jobs (copy lmac-sh's). The same swap the other way is how to recover an
+  # account whose CI roles are broken.
+  plan-lmacguire-sub-01:
+    needs: apply-management
+    if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/master' }}
+    runs-on: ubuntu-latest
+    environment: prod
+    outputs:
+      has_changes: ${{ steps.plan.outputs.has_changes }}
+    defaults:
+      run:
+        working-directory: accounts/lmacguire-sub-01
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false
+
+      - run: terraform init -input=false
+
+      - id: plan
+        run: |
+          ec=0
+          terraform plan -input=false -detailed-exitcode -var bootstrap=true -out=tfplan || ec=$?
+          [ "$ec" -eq 1 ] && exit 1
+          echo "has_changes=$([ "$ec" -eq 2 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - if: steps.plan.outputs.has_changes == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: tfplan-lmacguire-sub-01
+          path: accounts/lmacguire-sub-01/tfplan
+          retention-days: 1
+
+  apply-lmacguire-sub-01:
+    needs: plan-lmacguire-sub-01
+    if: >-
+      !failure() && !cancelled()
+      && github.ref == 'refs/heads/master'
+      && needs.plan-lmacguire-sub-01.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    environment: prod
+    defaults:
+      run:
+        working-directory: accounts/lmacguire-sub-01
+    steps:
+      - uses: actions/checkout@v7
+
+      # Same role as the plan job: the saved plan has bootstrap = true baked
+      # in, so its provider assumes OrganizationAccountAccessRole again.
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false
+
+      - run: terraform init -input=false
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: tfplan-lmacguire-sub-01
+          path: accounts/lmacguire-sub-01
 
       - run: terraform apply -input=false tfplan
