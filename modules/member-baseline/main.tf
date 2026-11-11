@@ -170,6 +170,12 @@ resource "aws_iam_role" "github" {
   name                 = "github-${each.key}"
   assume_role_policy   = data.aws_iam_policy_document.github_assume_role[each.key].json
   permissions_boundary = each.value.permissions_boundary == null ? null : aws_iam_policy.managed[each.value.permissions_boundary].arn
+
+  lifecycle {
+    # Repos' CI variables hold these ARNs, and a recreated role would break
+    # them. To retire one, terraform state rm it before dropping its key.
+    prevent_destroy = true
+  }
 }
 
 locals {
