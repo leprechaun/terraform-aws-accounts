@@ -11,9 +11,8 @@
 # copying whatever the last app used.
 
 locals {
-  # Until this stack manages them (ECR, then the state bucket).
-  state_bucket_arn                = "arn:aws:s3:::snacker-tracker-aws-infra-tfstate"
-  interface_lambda_repository_arn = "arn:aws:ecr:${local.app_region}:${local.account_id}:repository/snacker-tracker-lambda/interface"
+  # Until this stack manages it.
+  state_bucket_arn = "arn:aws:s3:::snacker-tracker-aws-infra-tfstate"
 
   app_github_roles = merge(
     {
@@ -625,7 +624,7 @@ data "aws_iam_policy_document" "interface_workloads" {
         "ecr:InitiateLayerUpload", "ecr:UploadLayerPart", "ecr:CompleteLayerUpload",
       ] : [],
     )
-    resources = [local.interface_lambda_repository_arn]
+    resources = [aws_ecr_repository.lambda["snacker-tracker-lambda/interface"].arn]
   }
 }
 

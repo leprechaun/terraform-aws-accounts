@@ -45,3 +45,7 @@ output "reporter_serverless_runtime_boundary_arn" {
   description = "Set as permissions_boundary on reporter-serverless's runtime roles, replacing runtime_role_boundary_arn"
   value       = module.baseline.managed_policy_arns["reporter-serverless-runtime-boundary"]
 }
+
+output "lambda_repository_urls" {
+  value = { for name, repository in aws_ecr_repository.lambda : name => repository.repository_url }
+}
