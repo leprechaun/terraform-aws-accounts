@@ -102,3 +102,16 @@ import {
   to = module.baseline.aws_iam_role_policy.github["actions-plan/state-lock"]
   id = "github-actions-plan:state-lock"
 }
+
+# The account alias and S3 public access block predate this stack (they
+# were snacker-tracker/aws-infra's); the alias is the baseline's default,
+# the account name.
+import {
+  to = module.baseline.aws_iam_account_alias.this
+  id = "snacker-tracker"
+}
+
+import {
+  to = module.baseline.aws_s3_account_public_access_block.this
+  id = local.account_id
+}

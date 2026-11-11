@@ -1,10 +1,26 @@
-# What every member account gets: the GitHub OIDC provider, the two roles
+# What every member account gets: an account alias and an account-wide S3
+# public access block, the GitHub OIDC provider, the two roles
 # terraform-aws-accounts' member-account pipeline logs in with, and roles
 # for workload repos. The pipeline manages its own roles here, so the first
 # apply of each account is local (see README).
 
 locals {
   state_prefix = "member-accounts/${var.name}"
+}
+
+# Account-wide settings: singletons, not tied to any workload.
+
+resource "aws_iam_account_alias" "this" {
+  account_alias = coalesce(var.account_alias, var.name)
+}
+
+# No bucket in any member account is public; anything served goes through
+# CloudFront with origin access control.
+resource "aws_s3_account_public_access_block" "this" {
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
 }
 
 # AWS validates GitHub's certificate itself now, so no thumbprint.

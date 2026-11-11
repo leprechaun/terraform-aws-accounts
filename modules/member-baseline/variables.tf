@@ -51,3 +51,9 @@ variable "github_roles" {
     error_message = "github_roles can only reference managed_policies by a name defined in var.managed_policies."
   }
 }
+
+variable "account_alias" {
+  description = "IAM account alias, for the sign-in URL. Globally unique across all of AWS. Defaults to name."
+  type        = string
+  default     = null
+}

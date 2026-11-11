@@ -11,9 +11,6 @@
 # copying whatever the last app used.
 
 locals {
-  # Until this stack manages it.
-  state_bucket_arn = "arn:aws:s3:::snacker-tracker-aws-infra-tfstate"
-
   app_github_roles = merge(
     {
       actions-reporter-serverless-deploy = {
@@ -367,10 +364,10 @@ data "aws_iam_policy_document" "reporter_serverless_deploy" {
       "s3:DeleteObject",
     ]
     resources = [
-      "${local.state_bucket_arn}/snacker-tracker-reporter-serverless",
-      "${local.state_bucket_arn}/snacker-tracker-reporter-serverless/*",
-      "${local.state_bucket_arn}/env:/*/snacker-tracker-reporter-serverless",
-      "${local.state_bucket_arn}/env:/*/snacker-tracker-reporter-serverless/*",
+      "${aws_s3_bucket.state.arn}/snacker-tracker-reporter-serverless",
+      "${aws_s3_bucket.state.arn}/snacker-tracker-reporter-serverless/*",
+      "${aws_s3_bucket.state.arn}/env:/*/snacker-tracker-reporter-serverless",
+      "${aws_s3_bucket.state.arn}/env:/*/snacker-tracker-reporter-serverless/*",
     ]
   }
 
@@ -378,7 +375,7 @@ data "aws_iam_policy_document" "reporter_serverless_deploy" {
     sid       = "SharedStateBucketListForReporterServerless"
     effect    = "Allow"
     actions   = ["s3:ListBucket", "s3:GetBucketLocation"]
-    resources = [local.state_bucket_arn]
+    resources = [aws_s3_bucket.state.arn]
 
     condition {
       test     = "StringLike"
@@ -801,7 +798,7 @@ data "aws_iam_policy_document" "interface_guards" {
   statement {
     sid       = "ListOwnState"
     actions   = ["s3:ListBucket"]
-    resources = [local.state_bucket_arn]
+    resources = [aws_s3_bucket.state.arn]
     condition {
       test     = "StringLike"
       variable = "s3:prefix"
@@ -812,13 +809,13 @@ data "aws_iam_policy_document" "interface_guards" {
   statement {
     sid       = "OwnState"
     actions   = ["s3:GetObject", "s3:PutObject"]
-    resources = ["${local.state_bucket_arn}/${each.value.main_state_object}"]
+    resources = ["${aws_s3_bucket.state.arn}/${each.value.main_state_object}"]
   }
 
   statement {
     sid       = "OwnStateLock"
     actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
-    resources = ["${local.state_bucket_arn}/${each.value.main_state_object}.tflock"]
+    resources = ["${aws_s3_bucket.state.arn}/${each.value.main_state_object}.tflock"]
   }
 
   statement {

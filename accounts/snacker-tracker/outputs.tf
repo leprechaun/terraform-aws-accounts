@@ -49,3 +49,7 @@ output "reporter_serverless_runtime_boundary_arn" {
 output "lambda_repository_urls" {
   value = { for name, repository in aws_ecr_repository.lambda : name => repository.repository_url }
 }
+
+output "account_alias" {
+  value = module.baseline.account_alias
+}

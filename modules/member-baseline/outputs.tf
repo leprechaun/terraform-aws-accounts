@@ -17,3 +17,7 @@ output "managed_policy_arns" {
 output "github_role_arns" {
   value = { for key, role in aws_iam_role.github : key => role.arn }
 }
+
+output "account_alias" {
+  value = aws_iam_account_alias.this.account_alias
+}
