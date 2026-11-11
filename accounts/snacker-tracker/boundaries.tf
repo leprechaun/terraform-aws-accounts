@@ -68,8 +68,11 @@ data "aws_iam_policy_document" "app_role_boundary" {
 
   # Denied only when targeting the CI/deploy-role layer specifically: any
   # github-actions-* role (every github_roles key here starts with
-  # actions-), this boundary itself, the runtime-role boundaries below, and
-  # the OIDC provider. Mutating a non-CI-named role or policy (an app's own
+  # actions-), terraform-aws-accounts' own roles and
+  # OrganizationAccountAccessRole (admin, or a step from it, like the
+  # github-actions-* ones), this boundary itself, the runtime-role
+  # boundaries below, and the OIDC provider. Mutating a non-CI-named role or
+  # policy (an app's own
   # runtime role) is left to AllowEverythingByDefault, controlled instead by
   # each app role's own policy.
   statement {
@@ -88,6 +91,8 @@ data "aws_iam_policy_document" "app_role_boundary" {
     ]
     resources = [
       "arn:aws:iam::*:role/github-actions-*",
+      "arn:aws:iam::*:role/terraform-aws-accounts*",
+      "arn:aws:iam::*:role/OrganizationAccountAccessRole",
       "arn:aws:iam::*:policy/app-role-permissions-boundary",
       "arn:aws:iam::*:policy/runtime-role-permissions-boundary",
       "arn:aws:iam::*:policy/reporter-serverless-runtime-boundary",
