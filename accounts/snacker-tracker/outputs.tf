@@ -16,16 +16,6 @@ output "khanom_xyz_name_servers" {
 
 # What snacker-tracker/aws-infra used to output, for the repos that use them.
 
-output "github_actions_admin_role_arn" {
-  description = "aws-infra's AWS_ROLE_ARN repo variable"
-  value       = module.baseline.github_role_arns["actions-admin"]
-}
-
-output "github_actions_plan_role_arn" {
-  description = "aws-infra's AWS_PLAN_ROLE_ARN repo variable"
-  value       = module.baseline.github_role_arns["actions-plan"]
-}
-
 output "reporter_serverless_deploy_role_arn" {
   description = "reporter-serverless's AWS_ROLE_ARN repo variable"
   value       = module.baseline.github_role_arns["actions-reporter-serverless-deploy"]
