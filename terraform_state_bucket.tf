@@ -51,6 +51,17 @@ locals {
     lmacguire-sub-01 = aws_organizations_account.lmacguire-sub-01.id
     snacker-tracker  = aws_organizations_account.snacker-tracker.id
   }
+
+  # Workload repos' stacks in member accounts, each with an apply and a plan
+  # role (github_roles in that account's stack) and its own state key.
+  workload_states = {
+    lmac-sh-site = {
+      account    = aws_organizations_account.lmac-sh.id
+      key        = "member-accounts/lmac-sh/site/terraform.tfstate"
+      apply_role = "github-site"
+      plan_role  = "github-site-plan"
+    }
+  }
 }
 
 data "aws_iam_policy_document" "terraform_state" {
@@ -150,6 +161,106 @@ data "aws_iam_policy_document" "terraform_state" {
         test     = "StringLike"
         variable = "s3:prefix"
         values   = ["member-accounts/${statement.key}/*", "env:/*"]
+      }
+    }
+  }
+
+  dynamic "statement" {
+    for_each = local.workload_states
+
+    content {
+      sid       = "${replace(title(replace(statement.key, "-", " ")), " ", "")}State"
+      effect    = "Allow"
+      actions   = ["s3:GetObject", "s3:PutObject"]
+      resources = ["${aws_s3_bucket.terraform_state.arn}/${statement.value.key}"]
+
+      principals {
+        type        = "AWS"
+        identifiers = ["*"]
+      }
+
+      condition {
+        test     = "ArnEquals"
+        variable = "aws:PrincipalArn"
+        values   = ["arn:aws:iam::${statement.value.account}:role/${statement.value.apply_role}"]
+      }
+    }
+  }
+
+  dynamic "statement" {
+    for_each = local.workload_states
+
+    content {
+      sid       = "${replace(title(replace(statement.key, "-", " ")), " ", "")}StateRead"
+      effect    = "Allow"
+      actions   = ["s3:GetObject"]
+      resources = ["${aws_s3_bucket.terraform_state.arn}/${statement.value.key}"]
+
+      principals {
+        type        = "AWS"
+        identifiers = ["*"]
+      }
+
+      condition {
+        test     = "ArnEquals"
+        variable = "aws:PrincipalArn"
+        values   = ["arn:aws:iam::${statement.value.account}:role/${statement.value.plan_role}"]
+      }
+    }
+  }
+
+  dynamic "statement" {
+    for_each = local.workload_states
+
+    content {
+      sid       = "${replace(title(replace(statement.key, "-", " ")), " ", "")}StateLock"
+      effect    = "Allow"
+      actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+      resources = ["${aws_s3_bucket.terraform_state.arn}/${statement.value.key}.tflock"]
+
+      principals {
+        type        = "AWS"
+        identifiers = ["*"]
+      }
+
+      condition {
+        test     = "ArnEquals"
+        variable = "aws:PrincipalArn"
+        values = [
+          "arn:aws:iam::${statement.value.account}:role/${statement.value.apply_role}",
+          "arn:aws:iam::${statement.value.account}:role/${statement.value.plan_role}",
+        ]
+      }
+    }
+  }
+
+  dynamic "statement" {
+    for_each = local.workload_states
+
+    content {
+      sid       = "${replace(title(replace(statement.key, "-", " ")), " ", "")}StateList"
+      effect    = "Allow"
+      actions   = ["s3:ListBucket"]
+      resources = [aws_s3_bucket.terraform_state.arn]
+
+      principals {
+        type        = "AWS"
+        identifiers = ["*"]
+      }
+
+      condition {
+        test     = "ArnEquals"
+        variable = "aws:PrincipalArn"
+        values = [
+          "arn:aws:iam::${statement.value.account}:role/${statement.value.apply_role}",
+          "arn:aws:iam::${statement.value.account}:role/${statement.value.plan_role}",
+        ]
+      }
+
+      condition {
+        test     = "StringLike"
+        variable = "s3:prefix"
+        values   = ["${dirname(statement.value.key)}/*"]
       }
     }
   }

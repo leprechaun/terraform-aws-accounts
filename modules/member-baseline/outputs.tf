@@ -21,3 +21,8 @@ output "github_role_arns" {
 output "account_alias" {
   value = aws_iam_account_alias.this.account_alias
 }
+
+output "state_bucket" {
+  description = "Where the account's stacks keep state, for workload roles that need a grant on it too."
+  value       = var.state_bucket
+}
