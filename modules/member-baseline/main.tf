@@ -134,8 +134,9 @@ resource "aws_iam_role_policy" "terraform_plan_state" {
 resource "aws_iam_policy" "managed" {
   for_each = var.managed_policies
 
-  name   = each.key
-  policy = each.value
+  name        = each.key
+  description = each.value.description
+  policy      = each.value.policy
 }
 
 data "aws_iam_policy_document" "github_assume_role" {

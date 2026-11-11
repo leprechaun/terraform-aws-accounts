@@ -15,9 +15,13 @@ variable "state_bucket" {
 }
 
 variable "managed_policies" {
-  description = "Customer managed policies to create in the account, as name => policy JSON. Roles reference them by name, as an attachment or as their permissions boundary."
-  type        = map(string)
-  default     = {}
+  description = "Customer managed policies to create in the account, keyed by name. Roles reference them by name, as an attachment or as their permissions boundary."
+  type = map(object({
+    policy = string
+    # Changing it replaces the policy, so match what's live when importing.
+    description = optional(string)
+  }))
+  default = {}
 }
 
 variable "github_roles" {

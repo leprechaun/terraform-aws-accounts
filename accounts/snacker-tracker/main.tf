@@ -3,6 +3,22 @@ module "baseline" {
 
   name = "snacker-tracker"
 
+  # See boundaries.tf.
+  managed_policies = {
+    app-role-permissions-boundary = {
+      description = "Boundary applied to every per-app GitHub Actions role: blocks IAM self-escalation regardless of the role's own policy"
+      policy      = data.aws_iam_policy_document.app_role_boundary.json
+    }
+    runtime-role-permissions-boundary = {
+      description = "Boundary required on every app runtime role: no IAM, Organizations or account management, whatever the role's own policy says"
+      policy      = data.aws_iam_policy_document.runtime_role_boundary.json
+    }
+    reporter-serverless-runtime-boundary = {
+      description = "Boundary required on reporter-serverless's runtime roles: only that app's own bucket, stream, event bus, queues and log groups"
+      policy      = data.aws_iam_policy_document.reporter_serverless_runtime_boundary.json
+    }
+  }
+
   github_roles = {
     # snacker-tracker/aws-infra's own CI roles, which it used to create
     # itself; names and ARNs are unchanged since its repo variables hold
