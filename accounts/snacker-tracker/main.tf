@@ -3,8 +3,8 @@ module "baseline" {
 
   name = "snacker-tracker"
 
-  # See boundaries.tf.
-  managed_policies = {
+  # Boundaries (boundaries.tf), then the app roles' policies (app_roles.tf).
+  managed_policies = merge({
     app-role-permissions-boundary = {
       description = "Boundary applied to every per-app GitHub Actions role: blocks IAM self-escalation regardless of the role's own policy"
       policy      = data.aws_iam_policy_document.app_role_boundary.json
@@ -17,9 +17,10 @@ module "baseline" {
       description = "Boundary required on reporter-serverless's runtime roles: only that app's own bucket, stream, event bus, queues and log groups"
       policy      = data.aws_iam_policy_document.reporter_serverless_runtime_boundary.json
     }
-  }
+  }, local.app_managed_policies)
 
-  github_roles = {
+  # aws-infra's own CI roles, then the app deploy roles (app_roles.tf).
+  github_roles = merge({
     # snacker-tracker/aws-infra's own CI roles, which it used to create
     # itself; names and ARNs are unchanged since its repo variables hold
     # them.
@@ -44,7 +45,7 @@ module "baseline" {
         state-lock = data.aws_iam_policy_document.aws_infra_plan_state_lock.json
       }
     }
-  }
+  }, local.app_github_roles)
 }
 
 locals {
