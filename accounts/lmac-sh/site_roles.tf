@@ -8,8 +8,8 @@
 
 locals {
   # The immutable sub form, as this account's repos use (see
-  # modules/member-baseline). Pin the repo ID once the repo exists.
-  site_repo = "leprechaun@355637/lmac-sh-site@*"
+  # modules/member-baseline).
+  site_repo = "leprechaun@355637/lmac-sh-site@1454451414"
 
   # The origin bucket (and any others the site needs) must be named with this.
   site_bucket_prefix = "lmac-sh-site"
