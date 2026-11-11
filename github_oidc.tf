@@ -317,7 +317,8 @@ data "aws_iam_policy_document" "github_actions_permissions" {
 
   # terraform_state_bucket.tf. Not the s3:* the buckets below get, because
   # this one holds every repo's state: read its config, set its tags and its
-  # policy (the member-account grants), but no s3:DeleteBucket. Get* matches
+  # policy (the member-account grants) and object ownership, but no
+  # s3:DeleteBucket. Get* matches
   # nothing object-level on a bucket ARN. s3:ListBucket is unconditional
   # because HeadBucket sends no s3:prefix to scope it by, and it also covers
   # the backend's own listing.
@@ -328,6 +329,7 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "s3:DeleteBucketPolicy",
       "s3:Get*",
       "s3:ListBucket",
+      "s3:PutBucketOwnershipControls",
       "s3:PutBucketPolicy",
       "s3:PutBucketTagging",
     ]

@@ -21,6 +21,23 @@ resource "aws_s3_bucket" "terraform_state" {
   }
 }
 
+# Member-account stacks write their state with roles from their own
+# account, and without this the writing account owns the object, so the
+# management account couldn't read it (bootstrap mode, recovery). With it,
+# ACLs are off and the bucket owner owns every object, existing ones too.
+resource "aws_s3_bucket_ownership_controls" "terraform_state" {
+  provider = aws.ap_southeast_1
+
+  bucket = aws_s3_bucket.terraform_state.id
+
+  rule {
+    object_ownership = "BucketOwnerEnforced"
+  }
+
+  # Applied by CI, whose permission for it is in the same apply.
+  depends_on = [aws_iam_role_policy.github_actions]
+}
+
 # Member-account stacks (accounts/<name>) run with roles inside their own
 # account, so reaching their state here needs this as well as their own
 # identity policies (modules/member-baseline). Each account only gets its
