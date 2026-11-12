@@ -1,8 +1,9 @@
 # The bucket snacker-tracker's app repos keep their Terraform state in
 # (interface's and reporter-serverless's deploy roles have grants on it, in
 # app_roles.tf). It used to hold snacker-tracker/aws-infra's own state too,
-# which is where its name comes from. Moving the apps' state into
-# lmacguire-terraform would be a separate job.
+# which is where its name comes from. The apps' state is moving into
+# lmacguire-terraform (app_state_bucket_arn in app_roles.tf); once it has,
+# this bucket goes.
 
 resource "aws_s3_bucket" "state" {
   provider = aws.app

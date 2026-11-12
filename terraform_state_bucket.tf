@@ -52,16 +52,77 @@ locals {
     snacker-tracker  = aws_organizations_account.snacker-tracker.id
   }
 
-  # Workload repos' stacks in member accounts, each with an apply and a plan
-  # role (github_roles in that account's stack) and its own state key.
+  # Workload repos' stacks in member accounts, each under its own prefix, as
+  # its S3 backend lays them out: the default workspace at
+  # <prefix>/terraform.tfstate (key = that), other workspaces at
+  # <prefix>/<workspace>/terraform.tfstate (key = "terraform.tfstate",
+  # workspace_key_prefix = <prefix>). Writers apply, readers only plan; both
+  # can lock and list the prefix. Principals are ARN patterns, matched with
+  # ArnLike.
   workload_states = {
     lmac-sh-site = {
-      account    = aws_organizations_account.lmac-sh.id
-      key        = "member-accounts/lmac-sh/site/terraform.tfstate"
-      apply_role = "github-site"
-      plan_role  = "github-site-plan"
+      prefix = "member-accounts/lmac-sh/site"
+      workspaces = {
+        default = {
+          writers = ["arn:aws:iam::${aws_organizations_account.lmac-sh.id}:role/github-site"]
+          readers = ["arn:aws:iam::${aws_organizations_account.lmac-sh.id}:role/github-site-plan"]
+        }
+      }
+    }
+
+    # Applied by CI, one role per environment.
+    snacker-tracker-interface = {
+      prefix = "member-accounts/snacker-tracker/interface"
+      workspaces = {
+        for env in ["dev", "prod"] : env => {
+          writers = ["arn:aws:iam::${aws_organizations_account.snacker-tracker.id}:role/github-actions-interface-${env}", local.snacker_tracker_admin]
+          readers = []
+        }
+      }
+    }
+
+    # Interface's IAM and buckets, which an admin applies by hand.
+    snacker-tracker-interface-admin = {
+      prefix = "member-accounts/snacker-tracker/interface-admin"
+      workspaces = {
+        for env in ["dev", "prod"] : env => { writers = [local.snacker_tracker_admin], readers = [] }
+      }
+    }
+
+    # Applied by CI, one role for both environments.
+    snacker-tracker-reporter-serverless = {
+      prefix = "member-accounts/snacker-tracker/reporter-serverless"
+      workspaces = {
+        for env in ["dev", "prod"] : env => {
+          writers = ["arn:aws:iam::${aws_organizations_account.snacker-tracker.id}:role/github-actions-reporter-serverless-deploy", local.snacker_tracker_admin]
+          readers = []
+        }
+      }
+    }
+
+    # Interface's stepdag/examples/hello, applied by hand.
+    snacker-tracker-stepdag-hello = {
+      prefix = "member-accounts/snacker-tracker/stepdag-hello"
+      workspaces = {
+        dev = { writers = [local.snacker_tracker_admin], readers = [] }
+      }
     }
   }
+
+  # Whoever has the account's AdministratorAccess permission set: the hand
+  # applies, and fixing a CI stack's state (unlocking, moving resources).
+  snacker_tracker_admin = "arn:aws:iam::${aws_organizations_account.snacker-tracker.id}:role/aws-reserved/sso.amazonaws.com/*/AWSReservedSSO_AdministratorAccess_*"
+
+  # One per state object, keyed for its Sids.
+  workload_state_objects = merge([
+    for name, state in local.workload_states : {
+      for workspace, access in state.workspaces : (workspace == "default" ? name : "${name}-${workspace}") => {
+        key     = workspace == "default" ? "${state.prefix}/terraform.tfstate" : "${state.prefix}/${workspace}/terraform.tfstate"
+        writers = access.writers
+        readers = access.readers
+      }
+    }
+  ]...)
 }
 
 data "aws_iam_policy_document" "terraform_state" {
@@ -166,7 +227,7 @@ data "aws_iam_policy_document" "terraform_state" {
   }
 
   dynamic "statement" {
-    for_each = local.workload_states
+    for_each = local.workload_state_objects
 
     content {
       sid       = "${replace(title(replace(statement.key, "-", " ")), " ", "")}State"
@@ -180,15 +241,15 @@ data "aws_iam_policy_document" "terraform_state" {
       }
 
       condition {
-        test     = "ArnEquals"
+        test     = "ArnLike"
         variable = "aws:PrincipalArn"
-        values   = ["arn:aws:iam::${statement.value.account}:role/${statement.value.apply_role}"]
+        values   = statement.value.writers
       }
     }
   }
 
   dynamic "statement" {
-    for_each = local.workload_states
+    for_each = { for name, object in local.workload_state_objects : name => object if length(object.readers) > 0 }
 
     content {
       sid       = "${replace(title(replace(statement.key, "-", " ")), " ", "")}StateRead"
@@ -202,15 +263,15 @@ data "aws_iam_policy_document" "terraform_state" {
       }
 
       condition {
-        test     = "ArnEquals"
+        test     = "ArnLike"
         variable = "aws:PrincipalArn"
-        values   = ["arn:aws:iam::${statement.value.account}:role/${statement.value.plan_role}"]
+        values   = statement.value.readers
       }
     }
   }
 
   dynamic "statement" {
-    for_each = local.workload_states
+    for_each = local.workload_state_objects
 
     content {
       sid       = "${replace(title(replace(statement.key, "-", " ")), " ", "")}StateLock"
@@ -224,16 +285,15 @@ data "aws_iam_policy_document" "terraform_state" {
       }
 
       condition {
-        test     = "ArnEquals"
+        test     = "ArnLike"
         variable = "aws:PrincipalArn"
-        values = [
-          "arn:aws:iam::${statement.value.account}:role/${statement.value.apply_role}",
-          "arn:aws:iam::${statement.value.account}:role/${statement.value.plan_role}",
-        ]
+        values   = concat(statement.value.writers, statement.value.readers)
       }
     }
   }
 
+  # The backend lists the prefix to find the workspaces, which shows each
+  # one's key but none of its contents.
   dynamic "statement" {
     for_each = local.workload_states
 
@@ -249,18 +309,15 @@ data "aws_iam_policy_document" "terraform_state" {
       }
 
       condition {
-        test     = "ArnEquals"
+        test     = "ArnLike"
         variable = "aws:PrincipalArn"
-        values = [
-          "arn:aws:iam::${statement.value.account}:role/${statement.value.apply_role}",
-          "arn:aws:iam::${statement.value.account}:role/${statement.value.plan_role}",
-        ]
+        values   = distinct(flatten([for access in values(statement.value.workspaces) : concat(access.writers, access.readers)]))
       }
 
       condition {
         test     = "StringLike"
         variable = "s3:prefix"
-        values   = ["${dirname(statement.value.key)}/*"]
+        values   = ["${statement.value.prefix}/*"]
       }
     }
   }

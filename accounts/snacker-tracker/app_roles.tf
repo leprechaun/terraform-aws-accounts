@@ -48,6 +48,13 @@ locals {
     }
   }
 
+  # Where the apps' state is moving: the management account's bucket, under
+  # member-accounts/snacker-tracker/<app>/<workspace>/terraform.tfstate. Its
+  # bucket policy (terraform_state_bucket.tf there) is the other half. The
+  # grants on the old bucket go once every app has moved.
+  app_state_bucket_arn = "arn:aws:s3:::${module.baseline.state_bucket}"
+  app_state_prefix     = "member-accounts/snacker-tracker"
+
   app_managed_policies = merge([
     for env, policies in local.interface_policies : {
       for key, policy in policies : "github-actions-interface-${env}-${key}" => { policy = policy }
@@ -381,6 +388,35 @@ data "aws_iam_policy_document" "reporter_serverless_deploy" {
       test     = "StringLike"
       variable = "s3:prefix"
       values   = ["snacker-tracker-reporter-serverless/*", "env:/*/snacker-tracker-reporter-serverless/*"]
+    }
+  }
+
+  # Its new home, one workspace per environment.
+  statement {
+    sid     = "State"
+    actions = ["s3:GetObject", "s3:PutObject"]
+    resources = [
+      for env in ["dev", "prod"] : "${local.app_state_bucket_arn}/${local.app_state_prefix}/reporter-serverless/${env}/terraform.tfstate"
+    ]
+  }
+
+  statement {
+    sid     = "StateLock"
+    actions = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+    resources = [
+      for env in ["dev", "prod"] : "${local.app_state_bucket_arn}/${local.app_state_prefix}/reporter-serverless/${env}/terraform.tfstate.tflock"
+    ]
+  }
+
+  statement {
+    sid       = "StateList"
+    actions   = ["s3:ListBucket"]
+    resources = [local.app_state_bucket_arn]
+
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = ["${local.app_state_prefix}/reporter-serverless/*"]
     }
   }
 
@@ -816,6 +852,30 @@ data "aws_iam_policy_document" "interface_guards" {
     sid       = "OwnStateLock"
     actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
     resources = ["${aws_s3_bucket.state.arn}/${each.value.main_state_object}.tflock"]
+  }
+
+  # Its new home: workspace_key_prefix = <app_state_prefix>/interface.
+  statement {
+    sid       = "ListNewState"
+    actions   = ["s3:ListBucket"]
+    resources = [local.app_state_bucket_arn]
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = ["${local.app_state_prefix}/interface/*"]
+    }
+  }
+
+  statement {
+    sid       = "NewState"
+    actions   = ["s3:GetObject", "s3:PutObject"]
+    resources = ["${local.app_state_bucket_arn}/${local.app_state_prefix}/interface/${each.key}/terraform.tfstate"]
+  }
+
+  statement {
+    sid       = "NewStateLock"
+    actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+    resources = ["${local.app_state_bucket_arn}/${local.app_state_prefix}/interface/${each.key}/terraform.tfstate.tflock"]
   }
 
   statement {
