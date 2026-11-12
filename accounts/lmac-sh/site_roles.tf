@@ -1,18 +1,24 @@
-# CI roles for the site's own repo, which deploys a static site from S3
-# through CloudFront (origin access control, an ACM certificate) under the
-# site zone (dns.tf). Plan on any branch, read-only; apply only from its
+# CI roles for the site's own repo, which deploys a private static site from
+# S3 through CloudFront (origin access control, an ACM certificate) under the
+# site zone (dns.tf), behind a Cognito user pool checked by a Lambda@Edge
+# function. Plan on any branch, read-only; apply only from its
 # approval-gated prod environment.
 #
-# Nothing here names the domain, which stays secret: the origin bucket is
-# scoped by the fixed prefix below, and records by the zone's ID.
+# Nothing here names the domain, which stays secret: the site's buckets,
+# functions and roles are scoped by the fixed prefix below, and records by
+# the zone's ID.
 
 locals {
   # The immutable sub form, as this account's repos use (see
   # modules/member-baseline).
   site_repo = "leprechaun@355637/lmac-sh-site@1454451414"
 
-  # The origin bucket (and any others the site needs) must be named with this.
-  site_bucket_prefix = "lmac-sh-site"
+  # The site's buckets, functions and roles must be named with this.
+  site_prefix = "lmac-sh-site"
+
+  # Lambda@Edge functions have to be created in us-east-1.
+  site_function_arn = "arn:aws:lambda:us-east-1:${local.account_id}:function:${local.site_prefix}-*"
+  site_role_arn     = "arn:aws:iam::${local.account_id}:role/${local.site_prefix}-*"
 
   # Same layout as the account's own stack, one level down.
   site_state_key = "member-accounts/lmac-sh/site/terraform.tfstate"
@@ -32,6 +38,26 @@ locals {
         state = data.aws_iam_policy_document.site_state["site-plan"].json
       }
     }
+  }
+
+  site_managed_policies = {
+    "${local.site_prefix}-runtime-boundary" = {
+      description = "Permissions boundary for the roles lmac-sh-site's CI creates: logs only."
+      policy      = data.aws_iam_policy_document.site_runtime_boundary.json
+    }
+  }
+}
+
+# The cap on every role the site's CI creates, whatever policies it gives
+# them: the deploy role can only create or change roles carrying it. Enough
+# for an auth function, which checks Cognito's tokens against its public
+# keys and needs no AWS access but its logs. Lambda@Edge writes those in
+# whichever region served the request, as /aws/lambda/us-east-1.<function>.
+data "aws_iam_policy_document" "site_runtime_boundary" {
+  statement {
+    sid       = "Logs"
+    actions   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
+    resources = ["arn:aws:logs:*:${local.account_id}:log-group:/aws/lambda/*${local.site_prefix}-*"]
   }
 }
 
@@ -68,9 +94,10 @@ data "aws_iam_policy_document" "site_state" {
   }
 }
 
-# No IAM at all: the site needs no roles of its own (no Lambda@Edge), so the
-# role can't grant itself anything. CloudFront and ACM are account-wide since
-# this account only hosts the site.
+# IAM only on the site's own roles, and only while they carry the runtime
+# boundary, so the role can't grant itself or anything else more than that.
+# CloudFront, ACM and Cognito are account-wide since this account only hosts
+# the site.
 data "aws_iam_policy_document" "site_deploy" {
   source_policy_documents = [data.aws_iam_policy_document.site_state["site"].json]
 
@@ -78,8 +105,8 @@ data "aws_iam_policy_document" "site_deploy" {
     sid     = "OriginBuckets"
     actions = ["s3:*"]
     resources = [
-      "arn:aws:s3:::${local.site_bucket_prefix}*",
-      "arn:aws:s3:::${local.site_bucket_prefix}*/*",
+      "arn:aws:s3:::${local.site_prefix}*",
+      "arn:aws:s3:::${local.site_prefix}*/*",
     ]
   }
 
@@ -121,11 +148,107 @@ data "aws_iam_policy_document" "site_deploy" {
     actions   = ["route53:GetChange", "route53:ListHostedZones", "route53:ListHostedZonesByName"]
     resources = ["*"]
   }
+
+  # The user pool, its clients, groups and domain. A custom domain also needs
+  # the certificate (above) and an alias record (Records).
+  statement {
+    sid       = "Cognito"
+    actions   = ["cognito-idp:*"]
+    resources = ["*"]
+  }
+
+  # Functions, their versions, and replicating them to CloudFront's edges.
+  statement {
+    sid       = "Functions"
+    actions   = ["lambda:*"]
+    resources = [local.site_function_arn, "${local.site_function_arn}:*"]
+  }
+
+  statement {
+    sid       = "FunctionLogs"
+    actions   = ["logs:*"]
+    resources = ["arn:aws:logs:*:${local.account_id}:log-group:/aws/lambda/*${local.site_prefix}-*"]
+  }
+
+  statement {
+    sid       = "DescribeLogs"
+    actions   = ["logs:DescribeLogGroups"]
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "Roles"
+    actions = [
+      "iam:GetRole",
+      "iam:GetRolePolicy",
+      "iam:ListRolePolicies",
+      "iam:ListAttachedRolePolicies",
+      "iam:ListInstanceProfilesForRole",
+      "iam:TagRole",
+      "iam:UntagRole",
+      "iam:UpdateAssumeRolePolicy",
+      "iam:DeleteRole",
+      "iam:DetachRolePolicy",
+      "iam:DeleteRolePolicy",
+    ]
+    resources = [local.site_role_arn]
+  }
+
+  # Creating a role or adding to what it may do only with the boundary on,
+  # so attaching even AdministratorAccess gets no further than it. No
+  # DeleteRolePermissionsBoundary, so it can't come off.
+  statement {
+    sid = "BoundedRoles"
+    actions = [
+      "iam:CreateRole",
+      "iam:PutRolePolicy",
+      "iam:AttachRolePolicy",
+      "iam:PutRolePermissionsBoundary",
+    ]
+    resources = [local.site_role_arn]
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PermissionsBoundary"
+      values   = [module.baseline.managed_policy_arns["${local.site_prefix}-runtime-boundary"]]
+    }
+  }
+
+  statement {
+    sid       = "PassRoles"
+    actions   = ["iam:PassRole"]
+    resources = [local.site_role_arn]
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PassedToService"
+      values   = ["lambda.amazonaws.com"]
+    }
+  }
+
+  # Lambda@Edge's replicator role, created the first time a function is
+  # attached to a distribution.
+  statement {
+    sid       = "EdgeReplicator"
+    actions   = ["iam:CreateServiceLinkedRole"]
+    resources = ["arn:aws:iam::${local.account_id}:role/aws-service-role/replicator.lambda.amazonaws.com/*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:AWSServiceName"
+      values   = ["replicator.lambda.amazonaws.com"]
+    }
+  }
 }
 
 output "site_role_arn" {
   description = "The site repo's apply role, for its prod environment."
   value       = module.baseline.github_role_arns["site"]
+}
+
+output "site_runtime_boundary_arn" {
+  description = "Set as permissions_boundary on every role the site's stack creates."
+  value       = module.baseline.managed_policy_arns["${local.site_prefix}-runtime-boundary"]
 }
 
 output "site_plan_role_arn" {
