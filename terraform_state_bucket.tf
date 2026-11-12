@@ -64,7 +64,7 @@ locals {
       prefix = "member-accounts/lmac-sh/site"
       workspaces = {
         default = {
-          writers = ["arn:aws:iam::${aws_organizations_account.lmac-sh.id}:role/github-site"]
+          writers = ["arn:aws:iam::${aws_organizations_account.lmac-sh.id}:role/github-site", local.sso_admins["lmac-sh"]]
           readers = ["arn:aws:iam::${aws_organizations_account.lmac-sh.id}:role/github-site-plan"]
         }
       }
@@ -75,7 +75,7 @@ locals {
       prefix = "member-accounts/snacker-tracker/interface"
       workspaces = {
         for env in ["dev", "prod"] : env => {
-          writers = ["arn:aws:iam::${aws_organizations_account.snacker-tracker.id}:role/github-actions-interface-${env}", local.snacker_tracker_admin]
+          writers = ["arn:aws:iam::${aws_organizations_account.snacker-tracker.id}:role/github-actions-interface-${env}", local.sso_admins["snacker-tracker"]]
           readers = []
         }
       }
@@ -85,7 +85,7 @@ locals {
     snacker-tracker-interface-admin = {
       prefix = "member-accounts/snacker-tracker/interface-admin"
       workspaces = {
-        for env in ["dev", "prod"] : env => { writers = [local.snacker_tracker_admin], readers = [] }
+        for env in ["dev", "prod"] : env => { writers = [local.sso_admins["snacker-tracker"]], readers = [] }
       }
     }
 
@@ -94,7 +94,7 @@ locals {
       prefix = "member-accounts/snacker-tracker/reporter-serverless"
       workspaces = {
         for env in ["dev", "prod"] : env => {
-          writers = ["arn:aws:iam::${aws_organizations_account.snacker-tracker.id}:role/github-actions-reporter-serverless-deploy", local.snacker_tracker_admin]
+          writers = ["arn:aws:iam::${aws_organizations_account.snacker-tracker.id}:role/github-actions-reporter-serverless-deploy", local.sso_admins["snacker-tracker"]]
           readers = []
         }
       }
@@ -104,14 +104,16 @@ locals {
     snacker-tracker-stepdag-hello = {
       prefix = "member-accounts/snacker-tracker/stepdag-hello"
       workspaces = {
-        dev = { writers = [local.snacker_tracker_admin], readers = [] }
+        dev = { writers = [local.sso_admins["snacker-tracker"]], readers = [] }
       }
     }
   }
 
-  # Whoever has the account's AdministratorAccess permission set: the hand
+  # Whoever has an account's AdministratorAccess permission set: the hand
   # applies, and fixing a CI stack's state (unlocking, moving resources).
-  snacker_tracker_admin = "arn:aws:iam::${aws_organizations_account.snacker-tracker.id}:role/aws-reserved/sso.amazonaws.com/*/AWSReservedSSO_AdministratorAccess_*"
+  sso_admins = {
+    for name, id in local.member_accounts : name => "arn:aws:iam::${id}:role/aws-reserved/sso.amazonaws.com/*/AWSReservedSSO_AdministratorAccess_*"
+  }
 
   # One per state object, keyed for its Sids.
   workload_state_objects = merge([
