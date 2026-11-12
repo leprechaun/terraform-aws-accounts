@@ -5,7 +5,7 @@
 # approval-gated prod environment.
 #
 # Nothing here names the domain, which stays secret: the site's buckets,
-# functions and roles are scoped by the fixed prefix below, and records by
+# functions and roles are scoped by the fixed prefixes below, and records by
 # the zone's ID.
 
 locals {
@@ -13,12 +13,17 @@ locals {
   # modules/member-baseline).
   site_repo = "leprechaun@355637/lmac-sh-site@1454451414"
 
-  # The site's buckets, functions and roles must be named with this.
+  # The site's buckets must be named with this.
   site_prefix = "lmac-sh-site"
 
+  # And its functions and their roles with this, as the stack named them
+  # before it moved here from the management account (private-website-auth).
+  site_runtime_prefix = "private-website"
+  site_boundary       = "${local.site_runtime_prefix}-auth-boundary"
+
   # Lambda@Edge functions have to be created in us-east-1.
-  site_function_arn = "arn:aws:lambda:us-east-1:${local.account_id}:function:${local.site_prefix}-*"
-  site_role_arn     = "arn:aws:iam::${local.account_id}:role/${local.site_prefix}-*"
+  site_function_arn = "arn:aws:lambda:us-east-1:${local.account_id}:function:${local.site_runtime_prefix}-*"
+  site_role_arn     = "arn:aws:iam::${local.account_id}:role/${local.site_runtime_prefix}-*"
 
   # Same layout as the account's own stack, one level down.
   site_state_key = "member-accounts/lmac-sh/site/terraform.tfstate"
@@ -41,23 +46,24 @@ locals {
   }
 
   site_managed_policies = {
-    "${local.site_prefix}-runtime-boundary" = {
-      description = "Permissions boundary for the roles lmac-sh-site's CI creates: logs only."
+    (local.site_boundary) = {
+      description = "Permissions boundary for the roles lmac-sh-site's CI creates (the Lambda@Edge auth function's): logs only."
       policy      = data.aws_iam_policy_document.site_runtime_boundary.json
     }
   }
 }
 
 # The cap on every role the site's CI creates, whatever policies it gives
-# them: the deploy role can only create or change roles carrying it. Enough
-# for an auth function, which checks Cognito's tokens against its public
-# keys and needs no AWS access but its logs. Lambda@Edge writes those in
-# whichever region served the request, as /aws/lambda/us-east-1.<function>.
+# them (AWSLambdaBasicExecutionRole, for the auth function): the deploy role
+# can only create or change roles carrying it. The auth function checks
+# Cognito's tokens against its public keys and needs no AWS access but its
+# logs. Lambda@Edge writes those in whichever region served the request, as
+# /aws/lambda/us-east-1.<function>.
 data "aws_iam_policy_document" "site_runtime_boundary" {
   statement {
     sid       = "Logs"
     actions   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
-    resources = ["arn:aws:logs:*:${local.account_id}:log-group:/aws/lambda/*${local.site_prefix}-*"]
+    resources = ["arn:aws:logs:*:${local.account_id}:log-group:/aws/lambda/*"]
   }
 }
 
@@ -158,6 +164,7 @@ data "aws_iam_policy_document" "site_deploy" {
   }
 
   # Functions, their versions, and replicating them to CloudFront's edges.
+  # Lambda@Edge only in us-east-1.
   statement {
     sid       = "Functions"
     actions   = ["lambda:*"]
@@ -167,7 +174,7 @@ data "aws_iam_policy_document" "site_deploy" {
   statement {
     sid       = "FunctionLogs"
     actions   = ["logs:*"]
-    resources = ["arn:aws:logs:*:${local.account_id}:log-group:/aws/lambda/*${local.site_prefix}-*"]
+    resources = ["arn:aws:logs:*:${local.account_id}:log-group:/aws/lambda/*${local.site_runtime_prefix}-*"]
   }
 
   statement {
@@ -210,7 +217,7 @@ data "aws_iam_policy_document" "site_deploy" {
     condition {
       test     = "StringEquals"
       variable = "iam:PermissionsBoundary"
-      values   = [module.baseline.managed_policy_arns["${local.site_prefix}-runtime-boundary"]]
+      values   = [module.baseline.managed_policy_arns[local.site_boundary]]
     }
   }
 
@@ -248,7 +255,7 @@ output "site_role_arn" {
 
 output "site_runtime_boundary_arn" {
   description = "Set as permissions_boundary on every role the site's stack creates."
-  value       = module.baseline.managed_policy_arns["${local.site_prefix}-runtime-boundary"]
+  value       = module.baseline.managed_policy_arns[local.site_boundary]
 }
 
 output "site_plan_role_arn" {
