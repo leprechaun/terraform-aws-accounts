@@ -13,8 +13,20 @@ locals {
   # modules/member-baseline).
   site_repo = "leprechaun@355637/lmac-sh-site@1454451414"
 
-  # The site's buckets must be named with this.
+  # The site's buckets must be named with this, or one of the names below.
   site_prefix = "lmac-sh-site"
+
+  # The sites' buckets as they were named before they moved here from the
+  # management account: the domain, as is and with dots as dashes, and
+  # private-<dashed domain>, plus a public- twin. Derived from the domain,
+  # which stays out of the repo.
+  site_dashed_domain = replace(var.site_domain_name, ".", "-")
+  site_bucket_names = [
+    var.site_domain_name,
+    local.site_dashed_domain,
+    "private-${local.site_dashed_domain}",
+    "public-${local.site_dashed_domain}",
+  ]
 
   # And its functions and their roles with this, as the stack named them
   # before it moved here from the management account (private-website-auth).
@@ -126,10 +138,14 @@ data "aws_iam_policy_document" "site_deploy" {
   statement {
     sid     = "OriginBuckets"
     actions = ["s3:*"]
-    resources = [
-      "arn:aws:s3:::${local.site_prefix}*",
-      "arn:aws:s3:::${local.site_prefix}*/*",
-    ]
+    resources = concat(
+      [
+        "arn:aws:s3:::${local.site_prefix}*",
+        "arn:aws:s3:::${local.site_prefix}*/*",
+      ],
+      [for name in local.site_bucket_names : "arn:aws:s3:::${name}"],
+      [for name in local.site_bucket_names : "arn:aws:s3:::${name}/*"],
+    )
   }
 
   # Distributions, origin access controls, cache and response headers
@@ -297,6 +313,28 @@ data "aws_iam_policy_document" "site_access_logs" {
       [for prefix in local.site_log_source_prefixes : "arn:aws:logs:us-east-1:${local.account_id}:delivery-source:${prefix}-*"],
       ["arn:aws:logs:us-east-1:${local.account_id}:delivery:*"],
     )
+  }
+
+  # The sites' own CloudWatch Logs deliveries: a log group per site, and a
+  # destination in this account pointing at it. (The central destination is
+  # the management account's, so none of this touches it.)
+  statement {
+    sid = "LogGroups"
+    actions = [
+      "logs:CreateLogGroup", "logs:DeleteLogGroup", "logs:PutRetentionPolicy",
+      "logs:DeleteRetentionPolicy", "logs:TagResource", "logs:UntagResource",
+      "logs:ListTagsForResource", "logs:TagLogGroup", "logs:ListTagsLogGroup",
+    ]
+    resources = [for prefix in local.site_log_source_prefixes : "arn:aws:logs:us-east-1:${local.account_id}:log-group:/aws/vendedlogs/cloudfront/${prefix}*"]
+  }
+
+  statement {
+    sid = "Destinations"
+    actions = [
+      "logs:PutDeliveryDestination", "logs:GetDeliveryDestination", "logs:DeleteDeliveryDestination",
+      "logs:TagResource", "logs:UntagResource", "logs:ListTagsForResource",
+    ]
+    resources = ["arn:aws:logs:us-east-1:${local.account_id}:delivery-destination:*"]
   }
 
   # Creating a delivery names the destination too.
