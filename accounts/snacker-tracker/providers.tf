@@ -3,6 +3,11 @@ locals {
   # .github/workflows/terraform.yml.
   account_id = "132218943709"
 
+  # The management stack's owner_account_id: where the central access-log
+  # bucket and each account's delivery destination live (access_logs.tf
+  # there).
+  management_account_id = "307985306317"
+
   default_tags = {
     Environment = "shared"
     ManagedBy   = "terraform"

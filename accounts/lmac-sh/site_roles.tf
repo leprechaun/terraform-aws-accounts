@@ -28,11 +28,20 @@ locals {
   # Same layout as the account's own stack, one level down.
   site_state_key = "member-accounts/lmac-sh/site/terraform.tfstate"
 
+  # CloudFront's access logs go to the management account's central bucket,
+  # through this account's delivery destination there. Its delivery sources
+  # must be named with site_prefix.
+  site_access_logs_policy      = "github-site-access-logs"
+  site_access_logs_destination = "arn:aws:logs:us-east-1:${local.management_account_id}:delivery-destination:access-logs-lmac-sh"
+
   site_github_roles = {
     site = {
       repo            = local.site_repo
       subjects        = ["environment:prod"]
       inline_policies = { deploy = data.aws_iam_policy_document.site_deploy.json }
+      # Managed, not another inline policy: a role's inline policies share
+      # one 10,240 character limit, and the deploy policy is most of it.
+      managed_policies = [local.site_access_logs_policy]
     }
 
     site-plan = {
@@ -46,6 +55,11 @@ locals {
   }
 
   site_managed_policies = {
+    (local.site_access_logs_policy) = {
+      description = "CloudFront access log delivery for lmac-sh-site's CI: its own delivery sources and deliveries, to this account's destination in the management account."
+      policy      = data.aws_iam_policy_document.site_access_logs.json
+    }
+
     (local.site_boundary) = {
       description = "Permissions boundary for the roles lmac-sh-site's CI creates (the Lambda@Edge auth function's): logs only."
       policy      = data.aws_iam_policy_document.site_runtime_boundary.json
@@ -260,4 +274,42 @@ output "site_runtime_boundary_arn" {
 
 output "site_plan_role_arn" {
   value = module.baseline.github_role_arns["site-plan"]
+}
+
+# CloudFront standard logging v2 for the site (cloudfront:* above already
+# covers cloudfront:AllowVendedLogDeliveryForResource). The delivery
+# destination is the management account's, with a policy there that lets
+# this account create a delivery to it, so there are no destination
+# permissions here: only the delivery source and the delivery. Delivery IDs
+# are generated, so deliveries can't be scoped by name. These are all
+# us-east-1 whatever region the bucket is in.
+data "aws_iam_policy_document" "site_access_logs" {
+  statement {
+    sid = "Deliveries"
+    actions = [
+      "logs:PutDeliverySource", "logs:GetDeliverySource", "logs:DeleteDeliverySource",
+      "logs:CreateDelivery", "logs:GetDelivery", "logs:DeleteDelivery", "logs:UpdateDeliveryConfiguration",
+      "logs:TagResource", "logs:UntagResource", "logs:ListTagsForResource",
+    ]
+    resources = [
+      "arn:aws:logs:us-east-1:${local.account_id}:delivery-source:${local.site_prefix}-*",
+      "arn:aws:logs:us-east-1:${local.account_id}:delivery:*",
+    ]
+  }
+
+  # Creating a delivery names the destination too.
+  statement {
+    sid       = "DeliverToCentralDestination"
+    actions   = ["logs:CreateDelivery"]
+    resources = [local.site_access_logs_destination]
+  }
+
+  statement {
+    sid = "ReadDeliveries"
+    actions = [
+      "logs:DescribeDeliverySources", "logs:DescribeDeliveryDestinations", "logs:DescribeDeliveries",
+      "logs:DescribeConfigurationTemplates", "logs:DescribeResourcePolicies",
+    ]
+    resources = ["*"]
+  }
 }

@@ -808,6 +808,16 @@ data "aws_iam_policy_document" "interface_access_logs" {
     ]
   }
 
+  # The central bucket's destination for this account, in the management account, whose policy
+  # lets this account create a delivery to it. Creating a delivery names the destination as well
+  # as the source, so this is the one thing needed to point a delivery there instead of at the
+  # environment's own bucket.
+  statement {
+    sid       = "DeliverToCentralDestination"
+    actions   = ["logs:CreateDelivery"]
+    resources = ["arn:aws:logs:us-east-1:${local.management_account_id}:delivery-destination:access-logs-snacker-tracker"]
+  }
+
   # Delivery reads the destinations' policies to check it may write; it never changes them here.
   statement {
     sid = "ReadDeliveries"

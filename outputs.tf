@@ -82,3 +82,13 @@ output "personal_domain_name_servers" {
   value       = aws_route53_zone.personal_domain.name_servers
   sensitive   = true
 }
+
+output "access_logs_bucket" {
+  description = "Central bucket for CloudFront standard logging v2 from every account (access_logs.tf)."
+  value       = aws_s3_bucket.access_logs.id
+}
+
+output "access_log_delivery_destinations" {
+  description = "Delivery destination ARN per account; each account's site stacks point their CloudFront log delivery at their own (access_logs.tf)."
+  value       = { for name, destination in aws_cloudwatch_log_delivery_destination.access_logs : name => destination.arn }
+}

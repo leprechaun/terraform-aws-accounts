@@ -347,7 +347,7 @@ data "aws_iam_policy_document" "github_actions_permissions" {
   # and aws_s3_bucket_policy resources touch a long, provider-version-
   # dependent set of read APIs on every plan, and getting this wrong means
   # another round of AccessDenied-then-patch in CI. Scoped tightly to just
-  # these two buckets, not account-wide, so the blast radius stays small
+  # these buckets, not account-wide, so the blast radius stays small
   # even though the action list doesn't.
   statement {
     sid    = "CloudTrailAndCostExportBuckets"
@@ -360,7 +360,37 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "${aws_s3_bucket.cloudtrail_logs.arn}/*",
       aws_s3_bucket.cost_exports.arn,
       "${aws_s3_bucket.cost_exports.arn}/*",
+      # By name, not the resource's ARN: the bucket waits on this policy
+      # (access_logs.tf), so referencing it would be a cycle.
+      "arn:aws:s3:::${local.access_logs_bucket_name}",
+      "arn:aws:s3:::${local.access_logs_bucket_name}/*",
     ]
+  }
+
+  # access_logs.tf's delivery destinations and their policies. Describe has
+  # no resource-level scoping.
+  statement {
+    sid    = "AccessLogDeliveryDestinations"
+    effect = "Allow"
+    actions = [
+      "logs:PutDeliveryDestination",
+      "logs:GetDeliveryDestination",
+      "logs:DeleteDeliveryDestination",
+      "logs:PutDeliveryDestinationPolicy",
+      "logs:GetDeliveryDestinationPolicy",
+      "logs:DeleteDeliveryDestinationPolicy",
+      "logs:TagResource",
+      "logs:UntagResource",
+      "logs:ListTagsForResource",
+    ]
+    resources = ["arn:aws:logs:${var.aws_region}:${var.owner_account_id}:delivery-destination:access-logs-*"]
+  }
+
+  statement {
+    sid       = "AccessLogDeliveryDestinationsList"
+    effect    = "Allow"
+    actions   = ["logs:DescribeDeliveryDestinations"]
+    resources = ["*"]
   }
 
   # DescribeTrails (and other list-type CloudTrail actions) don't support

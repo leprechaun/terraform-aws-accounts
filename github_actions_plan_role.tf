@@ -105,7 +105,28 @@ data "aws_iam_policy_document" "github_actions_plan_permissions" {
       "${aws_s3_bucket.cloudtrail_logs.arn}/*",
       aws_s3_bucket.cost_exports.arn,
       "${aws_s3_bucket.cost_exports.arn}/*",
+      # Bucket only: planning reads its configuration, not the logs in it.
+      aws_s3_bucket.access_logs.arn,
     ]
+  }
+
+  # Read-only equivalent of AccessLogDeliveryDestinations in github_oidc.tf.
+  statement {
+    sid    = "AccessLogDeliveryDestinationsRead"
+    effect = "Allow"
+    actions = [
+      "logs:GetDeliveryDestination",
+      "logs:GetDeliveryDestinationPolicy",
+      "logs:ListTagsForResource",
+    ]
+    resources = ["arn:aws:logs:${var.aws_region}:${var.owner_account_id}:delivery-destination:access-logs-*"]
+  }
+
+  statement {
+    sid       = "AccessLogDeliveryDestinationsList"
+    effect    = "Allow"
+    actions   = ["logs:DescribeDeliveryDestinations"]
+    resources = ["*"]
   }
 
   statement {
