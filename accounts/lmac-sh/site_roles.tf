@@ -30,7 +30,9 @@ locals {
 
   # CloudFront's access logs go to the management account's central bucket,
   # through this account's delivery destination there. Its delivery sources
-  # must be named with site_prefix.
+  # must be named with one of these, the sites' own names rather than
+  # site_prefix.
+  site_log_source_prefixes     = ["public-website", "private-website"]
   site_access_logs_policy      = "github-site-access-logs"
   site_access_logs_destination = "arn:aws:logs:us-east-1:${local.management_account_id}:delivery-destination:access-logs-lmac-sh"
 
@@ -291,10 +293,10 @@ data "aws_iam_policy_document" "site_access_logs" {
       "logs:CreateDelivery", "logs:GetDelivery", "logs:DeleteDelivery", "logs:UpdateDeliveryConfiguration",
       "logs:TagResource", "logs:UntagResource", "logs:ListTagsForResource",
     ]
-    resources = [
-      "arn:aws:logs:us-east-1:${local.account_id}:delivery-source:${local.site_prefix}-*",
-      "arn:aws:logs:us-east-1:${local.account_id}:delivery:*",
-    ]
+    resources = concat(
+      [for prefix in local.site_log_source_prefixes : "arn:aws:logs:us-east-1:${local.account_id}:delivery-source:${prefix}-*"],
+      ["arn:aws:logs:us-east-1:${local.account_id}:delivery:*"],
+    )
   }
 
   # Creating a delivery names the destination too.
