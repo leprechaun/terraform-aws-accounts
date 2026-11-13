@@ -190,6 +190,21 @@ data "aws_iam_policy_document" "management_aws_github_actions_plan_permissions" 
   }
 
   statement {
+    sid    = "DagsterUserRead"
+    effect = "Allow"
+    actions = [
+      "iam:GetUser",
+      "iam:GetUserPolicy",
+      "iam:ListAccessKeys",
+      "iam:ListAttachedUserPolicies",
+      "iam:ListGroupsForUser",
+      "iam:ListUserPolicies",
+      "iam:ListUserTags",
+    ]
+    resources = ["arn:aws:iam::${var.owner_account_id}:user/dagster"]
+  }
+
+  statement {
     sid       = "PrivateWebsiteAuthBoundaryRead"
     effect    = "Allow"
     actions   = ["iam:GetPolicy", "iam:GetPolicyVersion"]

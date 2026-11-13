@@ -489,6 +489,34 @@ data "aws_iam_policy_document" "management_aws_github_actions_deploy" {
     }
   }
 
+  # The dagster stack's IAM user, its access key and inline policy. Scoped to
+  # that one user. No AttachUserPolicy: attaching managed policies would let
+  # the pipeline hand the user anything, including AdministratorAccess.
+  statement {
+    sid    = "DagsterUser"
+    effect = "Allow"
+    actions = [
+      "iam:CreateAccessKey",
+      "iam:CreateUser",
+      "iam:DeleteAccessKey",
+      "iam:DeleteUser",
+      "iam:DeleteUserPolicy",
+      "iam:GetUser",
+      "iam:GetUserPolicy",
+      "iam:ListAccessKeys",
+      "iam:ListAttachedUserPolicies",
+      "iam:ListGroupsForUser",
+      "iam:ListUserPolicies",
+      "iam:ListUserTags",
+      "iam:PutUserPolicy",
+      "iam:TagUser",
+      "iam:UntagUser",
+      "iam:UpdateAccessKey",
+      "iam:UpdateUser",
+    ]
+    resources = ["arn:aws:iam::${var.owner_account_id}:user/dagster"]
+  }
+
   # These SES actions don't support resource-level scoping.
   statement {
     sid    = "Ses"
