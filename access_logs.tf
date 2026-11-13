@@ -200,9 +200,10 @@ resource "aws_cloudwatch_log_delivery_destination" "access_logs" {
   depends_on = [aws_s3_bucket_policy.access_logs]
 }
 
-# Lets each member account create a delivery to its own destination, and
-# nothing else. The management account's deliveries are same-account and
-# need no policy.
+# Lets each member account create a delivery to its own destination and
+# change that delivery's configuration (the provider sets a suffix path with
+# an update right after the create), and nothing else. The management
+# account's deliveries are same-account and need no policy.
 data "aws_iam_policy_document" "access_log_delivery" {
   for_each = local.member_accounts
 
@@ -215,7 +216,7 @@ data "aws_iam_policy_document" "access_log_delivery" {
       identifiers = [each.value]
     }
 
-    actions   = ["logs:CreateDelivery"]
+    actions   = ["logs:CreateDelivery", "logs:UpdateDeliveryConfiguration"]
     resources = [aws_cloudwatch_log_delivery_destination.access_logs[each.key].arn]
   }
 }

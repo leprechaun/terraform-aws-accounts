@@ -814,7 +814,7 @@ data "aws_iam_policy_document" "interface_access_logs" {
   # environment's own bucket.
   statement {
     sid       = "DeliverToCentralDestination"
-    actions   = ["logs:CreateDelivery"]
+    actions   = ["logs:CreateDelivery", "logs:UpdateDeliveryConfiguration"]
     resources = ["arn:aws:logs:us-east-1:${local.management_account_id}:delivery-destination:access-logs-snacker-tracker"]
   }
 

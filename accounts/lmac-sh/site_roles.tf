@@ -337,10 +337,10 @@ data "aws_iam_policy_document" "site_access_logs" {
     resources = ["arn:aws:logs:us-east-1:${local.account_id}:delivery-destination:*"]
   }
 
-  # Creating a delivery names the destination too.
+  # Creating or updating a delivery names the destination too.
   statement {
     sid       = "DeliverToCentralDestination"
-    actions   = ["logs:CreateDelivery"]
+    actions   = ["logs:CreateDelivery", "logs:UpdateDeliveryConfiguration"]
     resources = [local.site_access_logs_destination]
   }
 
