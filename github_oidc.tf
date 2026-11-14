@@ -265,6 +265,24 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     resources = [local.private_website_auth_boundary_arn]
   }
 
+  # dagster_boundary.tf.
+  statement {
+    sid    = "ManageDagsterBoundary"
+    effect = "Allow"
+    actions = [
+      "iam:CreatePolicy",
+      "iam:CreatePolicyVersion",
+      "iam:DeletePolicy",
+      "iam:DeletePolicyVersion",
+      "iam:GetPolicy",
+      "iam:GetPolicyVersion",
+      "iam:ListPolicyVersions",
+      "iam:TagPolicy",
+      "iam:UntagPolicy",
+    ]
+    resources = [local.dagster_boundary_arn]
+  }
+
   # Terraform never deletes a state file, so only the lock gets s3:DeleteObject.
   # Apply writes state after changing this policy, so a wrong key here leaves
   # that run unable to save its state.

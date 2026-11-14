@@ -201,7 +201,14 @@ data "aws_iam_policy_document" "management_aws_github_actions_plan_permissions" 
       "iam:ListUserPolicies",
       "iam:ListUserTags",
     ]
-    resources = ["arn:aws:iam::${var.owner_account_id}:user/dagster"]
+    resources = [local.dagster_user_arn]
+  }
+
+  statement {
+    sid       = "DagsterBoundaryRead"
+    effect    = "Allow"
+    actions   = ["iam:GetPolicy", "iam:GetPolicyVersion"]
+    resources = [local.dagster_boundary_arn]
   }
 
   statement {

@@ -489,15 +489,33 @@ data "aws_iam_policy_document" "management_aws_github_actions_deploy" {
     }
   }
 
-  # The dagster stack's IAM user, its access key and inline policy. Scoped to
-  # that one user. No AttachUserPolicy: attaching managed policies would let
-  # the pipeline hand the user anything, including AdministratorAccess.
+  # The dagster stack's IAM user, its access key and inline policy
+  # (dagster_boundary.tf). Scoped to that one user, and creating or changing
+  # its boundary only works with the boundary attached. No AttachUserPolicy:
+  # attaching managed policies would let the pipeline hand the user anything,
+  # including AdministratorAccess.
+  statement {
+    sid    = "DagsterUserBounded"
+    effect = "Allow"
+    actions = [
+      "iam:CreateUser",
+      "iam:PutUserPermissionsBoundary",
+      "iam:PutUserPolicy",
+    ]
+    resources = [local.dagster_user_arn]
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PermissionsBoundary"
+      values   = [local.dagster_boundary_arn]
+    }
+  }
+
   statement {
     sid    = "DagsterUser"
     effect = "Allow"
     actions = [
       "iam:CreateAccessKey",
-      "iam:CreateUser",
       "iam:DeleteAccessKey",
       "iam:DeleteUser",
       "iam:DeleteUserPolicy",
@@ -508,13 +526,20 @@ data "aws_iam_policy_document" "management_aws_github_actions_deploy" {
       "iam:ListGroupsForUser",
       "iam:ListUserPolicies",
       "iam:ListUserTags",
-      "iam:PutUserPolicy",
       "iam:TagUser",
       "iam:UntagUser",
       "iam:UpdateAccessKey",
       "iam:UpdateUser",
     ]
-    resources = ["arn:aws:iam::${var.owner_account_id}:user/dagster"]
+    resources = [local.dagster_user_arn]
+  }
+
+  # In case the stack looks the boundary up rather than hardcoding its ARN.
+  statement {
+    sid       = "DagsterBoundaryRead"
+    effect    = "Allow"
+    actions   = ["iam:GetPolicy", "iam:GetPolicyVersion"]
+    resources = [local.dagster_boundary_arn]
   }
 
   # These SES actions don't support resource-level scoping.

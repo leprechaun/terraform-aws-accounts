@@ -60,7 +60,7 @@ locals {
 
     site-plan = {
       repo        = local.site_repo
-      subjects    = ["ref:refs/heads/*"]
+      subjects    = ["ref:refs/heads/*", "pull_request"]
       policy_arns = ["arn:aws:iam::aws:policy/ReadOnlyAccess"]
       inline_policies = {
         state = data.aws_iam_policy_document.site_state["site-plan"].json
