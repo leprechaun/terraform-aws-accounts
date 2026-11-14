@@ -4,8 +4,8 @@
 # user, the user can never do more than this. Change it here, not in
 # terraform-aws-management.
 #
-# S3 object access only, account-wide: the stack's own policy narrows it to
-# specific buckets. Tighten this to named buckets once they're settled.
+# Read-only S3, account-wide: the stack's own policy narrows it to specific
+# buckets. Tighten this to named buckets once they're settled.
 
 locals {
   dagster_user_arn      = "arn:aws:iam::${var.owner_account_id}:user/dagster"
@@ -15,14 +15,11 @@ locals {
 
 data "aws_iam_policy_document" "dagster_boundary" {
   statement {
-    sid    = "S3Objects"
+    sid    = "S3ReadOnly"
     effect = "Allow"
     actions = [
-      "s3:AbortMultipartUpload",
-      "s3:DeleteObject",
       "s3:GetObject",
       "s3:ListBucket",
-      "s3:PutObject",
     ]
     resources = ["arn:aws:s3:::*"]
   }
