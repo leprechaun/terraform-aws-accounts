@@ -86,6 +86,13 @@ data "aws_iam_policy_document" "github_actions_plan_permissions" {
   }
 
   statement {
+    sid       = "ReadDagsterBoundary"
+    effect    = "Allow"
+    actions   = ["iam:GetPolicy", "iam:GetPolicyVersion", "iam:ListPolicyVersions"]
+    resources = [local.dagster_boundary_arn]
+  }
+
+  statement {
     sid       = "Sts"
     effect    = "Allow"
     actions   = ["sts:GetCallerIdentity"]
