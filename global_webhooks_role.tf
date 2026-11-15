@@ -91,7 +91,8 @@ data "aws_iam_policy_document" "global_webhooks_github_actions_deploy" {
   }
 
   # REST API IDs are generated at create time, so this can't be narrowed to
-  # one API. Covers every REST API and custom domain in this region.
+  # one API. Covers every REST API, custom domain, API key and usage plan in
+  # this region.
   statement {
     sid     = "ApiGateway"
     effect  = "Allow"
@@ -101,6 +102,10 @@ data "aws_iam_policy_document" "global_webhooks_github_actions_deploy" {
       "arn:aws:apigateway:${local.global_webhooks_region}::/restapis/*",
       "arn:aws:apigateway:${local.global_webhooks_region}::/domainnames",
       "arn:aws:apigateway:${local.global_webhooks_region}::/domainnames/*",
+      "arn:aws:apigateway:${local.global_webhooks_region}::/apikeys",
+      "arn:aws:apigateway:${local.global_webhooks_region}::/apikeys/*",
+      "arn:aws:apigateway:${local.global_webhooks_region}::/usageplans",
+      "arn:aws:apigateway:${local.global_webhooks_region}::/usageplans/*",
       "arn:aws:apigateway:${local.global_webhooks_region}::/tags/*",
     ]
   }
