@@ -86,18 +86,18 @@ locals {
     }
 
     (local.site_user_boundary) = {
-      description = "Permissions boundary for the gitea-actions user: S3 object reads and writes, no deletes."
+      description = "Permissions boundary for the gitea-actions user: S3 object reads, writes and deletes."
       policy      = data.aws_iam_policy_document.site_user_boundary.json
     }
   }
 }
 
 # The cap on the gitea-actions user, whatever policies get attached to it.
-# Reads and writes only, no deletes, so the user can't remove what it wrote.
+# Object reads, writes and deletes, and no bucket-level changes.
 data "aws_iam_policy_document" "site_user_boundary" {
   statement {
     sid       = "S3Objects"
-    actions   = ["s3:AbortMultipartUpload", "s3:GetObject", "s3:ListBucket", "s3:PutObject"]
+    actions   = ["s3:AbortMultipartUpload", "s3:DeleteObject", "s3:GetObject", "s3:ListBucket", "s3:PutObject"]
     resources = ["arn:aws:s3:::*"]
   }
 }
