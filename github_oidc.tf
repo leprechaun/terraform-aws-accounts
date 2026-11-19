@@ -432,6 +432,21 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     resources = ["*"]
   }
 
+  # CreateExport also calls the legacy CUR API to put the report definition,
+  # so these are needed on top of bcm-data-exports:*. CUR doesn't support
+  # resource-level ARN scoping either.
+  statement {
+    sid    = "CurReportDefinitions"
+    effect = "Allow"
+    actions = [
+      "cur:DeleteReportDefinition",
+      "cur:DescribeReportDefinitions",
+      "cur:ModifyReportDefinition",
+      "cur:PutReportDefinition",
+    ]
+    resources = ["*"]
+  }
+
   # dns.tf's hosted zone(s) — CreateHostedZone can't be scoped to a
   # resource ARN since the zone ID doesn't exist until after creation, same
   # tradeoff as elsewhere in this file.
