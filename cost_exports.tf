@@ -69,23 +69,23 @@ locals {
   cur_exports = {
     "with-resource-ids-split-hourly-parquet-overwrite" = {
       include_resources = "TRUE"
-      granularity        = "HOURLY"
-      query_statement    = local.cur_query_with_resource_ids
+      granularity       = "HOURLY"
+      query_statement   = local.cur_query_with_resource_ids
     }
     "with-resource-ids-split-daily-parquet-overwrite" = {
       include_resources = "TRUE"
-      granularity        = "DAILY"
-      query_statement    = local.cur_query_with_resource_ids
+      granularity       = "DAILY"
+      query_statement   = local.cur_query_with_resource_ids
     }
     "without-resource-ids-split-hourly-parquet-overwrite" = {
       include_resources = "FALSE"
-      granularity        = "HOURLY"
-      query_statement    = local.cur_query_without_resource_ids
+      granularity       = "HOURLY"
+      query_statement   = local.cur_query_without_resource_ids
     }
     "without-resource-ids-split-daily-parquet-overwrite" = {
       include_resources = "FALSE"
-      granularity        = "DAILY"
-      query_statement    = local.cur_query_without_resource_ids
+      granularity       = "DAILY"
+      query_statement   = local.cur_query_without_resource_ids
     }
   }
 }
@@ -101,6 +101,9 @@ resource "aws_bcmdataexports_export" "cur" {
 
       table_configurations = {
         COST_AND_USAGE_REPORT = {
+          # AWS reports the Primary billing view on every export, so declare it
+          # or the provider rejects the result after apply.
+          BILLING_VIEW_ARN                      = "arn:aws:billing::${var.owner_account_id}:billingview/primary"
           TIME_GRANULARITY                      = each.value.granularity
           INCLUDE_RESOURCES                     = each.value.include_resources
           INCLUDE_MANUAL_DISCOUNT_COMPATIBILITY = "FALSE"
