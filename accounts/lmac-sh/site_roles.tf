@@ -33,6 +33,12 @@ locals {
   site_runtime_prefix = "private-website"
   site_boundary       = "${local.site_runtime_prefix}-auth-boundary"
 
+  # The IAM user for the on-prem Gitea runner (gitea-actions.tf in the site
+  # repo). Only this exact user can be created or changed, and only with its
+  # boundary attached.
+  site_user_arn      = "arn:aws:iam::${local.account_id}:user/gitea-actions"
+  site_user_boundary = "gitea-actions-boundary"
+
   # Lambda@Edge functions have to be created in us-east-1.
   site_function_arn = "arn:aws:lambda:us-east-1:${local.account_id}:function:${local.site_runtime_prefix}-*"
   site_role_arn     = "arn:aws:iam::${local.account_id}:role/${local.site_runtime_prefix}-*"
@@ -78,6 +84,21 @@ locals {
       description = "Permissions boundary for the roles lmac-sh-site's CI creates (the Lambda@Edge auth function's): logs only."
       policy      = data.aws_iam_policy_document.site_runtime_boundary.json
     }
+
+    (local.site_user_boundary) = {
+      description = "Permissions boundary for the gitea-actions user: S3 object reads and writes, no deletes."
+      policy      = data.aws_iam_policy_document.site_user_boundary.json
+    }
+  }
+}
+
+# The cap on the gitea-actions user, whatever policies get attached to it.
+# Reads and writes only, no deletes, so the user can't remove what it wrote.
+data "aws_iam_policy_document" "site_user_boundary" {
+  statement {
+    sid       = "S3Objects"
+    actions   = ["s3:AbortMultipartUpload", "s3:GetObject", "s3:ListBucket", "s3:PutObject"]
+    resources = ["arn:aws:s3:::*"]
   }
 }
 
@@ -265,6 +286,44 @@ data "aws_iam_policy_document" "site_deploy" {
     }
   }
 
+  # The gitea-actions user, and only while it carries its boundary, so the
+  # user can't be given more than that. No AttachUserPolicy: attaching managed
+  # policies would hand it anything, including AdministratorAccess. No
+  # DeleteUserPermissionsBoundary, so the boundary can't come off.
+  statement {
+    sid       = "AppUserBounded"
+    actions   = ["iam:CreateUser", "iam:PutUserPermissionsBoundary", "iam:PutUserPolicy"]
+    resources = [local.site_user_arn]
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PermissionsBoundary"
+      values   = [module.baseline.managed_policy_arns[local.site_user_boundary]]
+    }
+  }
+
+  statement {
+    sid = "AppUser"
+    actions = [
+      "iam:CreateAccessKey",
+      "iam:DeleteAccessKey",
+      "iam:DeleteUser",
+      "iam:DeleteUserPolicy",
+      "iam:GetUser",
+      "iam:GetUserPolicy",
+      "iam:ListAccessKeys",
+      "iam:ListAttachedUserPolicies",
+      "iam:ListGroupsForUser",
+      "iam:ListUserPolicies",
+      "iam:ListUserTags",
+      "iam:TagUser",
+      "iam:UntagUser",
+      "iam:UpdateAccessKey",
+      "iam:UpdateUser",
+    ]
+    resources = [local.site_user_arn]
+  }
+
   # Lambda@Edge's replicator role, created the first time a function is
   # attached to a distribution.
   statement {
@@ -292,6 +351,11 @@ output "site_runtime_boundary_arn" {
 
 output "site_plan_role_arn" {
   value = module.baseline.github_role_arns["site-plan"]
+}
+
+output "gitea_actions_boundary_arn" {
+  description = "Set as permissions_boundary on the gitea-actions user in the site's stack."
+  value       = module.baseline.managed_policy_arns[local.site_user_boundary]
 }
 
 # CloudFront standard logging v2 for the site (cloudfront:* above already
