@@ -23,6 +23,36 @@ resource "aws_s3_account_public_access_block" "this" {
   restrict_public_buckets = true
 }
 
+# The role API Gateway assumes to write execution and access logs to
+# CloudWatch. Only the account-wide setting below uses it.
+data "aws_iam_policy_document" "api_gateway_cloudwatch_assume_role" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["apigateway.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "api_gateway_cloudwatch_role" {
+  name               = "api-gateway-cloudwatch"
+  assume_role_policy = data.aws_iam_policy_document.api_gateway_cloudwatch_assume_role.json
+}
+
+resource "aws_iam_role_policy_attachment" "api_gateway_cloudwatch_policy" {
+  role       = aws_iam_role.api_gateway_cloudwatch_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
+}
+
+# Account-wide and per region: the CloudWatch logging role for API Gateway.
+resource "aws_api_gateway_account" "this" {
+  cloudwatch_role_arn = aws_iam_role.api_gateway_cloudwatch_role.arn
+  depends_on          = [aws_iam_role_policy_attachment.api_gateway_cloudwatch_policy]
+}
+
 # AWS validates GitHub's certificate itself now, so no thumbprint.
 resource "aws_iam_openid_connect_provider" "github" {
   url            = "https://token.actions.githubusercontent.com"
