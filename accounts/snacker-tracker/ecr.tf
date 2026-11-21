@@ -21,16 +21,6 @@ locals {
       # interface defined it.
       lambda_functions = "snacker-tracker-*"
     }
-
-    "snacker-tracker-lambda/append-to-bronze" = {
-      # reporter-serverless's; its deploy role can push to anything under
-      # snacker-tracker-lambda* (app_roles.tf).
-      component            = "reporter-serverless"
-      image_tag_mutability = "MUTABLE"
-      keep_deploys         = [{ environment = "prod", count = 5 }, { environment = "dev", count = 3 }]
-      keep_other           = 10
-      lambda_functions     = null
-    }
   }
 
   untagged_image_days = 7
@@ -51,9 +41,17 @@ resource "aws_ecr_repository" "lambda" {
     scan_on_push = true
   }
 
+  # TEMPORARY, for removing append-to-bronze: lets the repo be deleted along
+  # with any images it still holds. Remove this line, and restore
+  # prevent_destroy below, once that apply has run.
+  force_delete = true
+
   lifecycle {
-    # Holds the images prod runs.
-    prevent_destroy = true
+    # TEMPORARY: prevent_destroy is off so append-to-bronze can be deleted.
+    # Every repo in this for_each is unguarded until it's restored, so the
+    # interface repo's images are not protected during that window. Restore
+    # it, `prevent_destroy = true`, once the apply has run.
+    # prevent_destroy = true
   }
 }
 
