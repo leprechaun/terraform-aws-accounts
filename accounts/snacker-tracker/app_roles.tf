@@ -141,6 +141,9 @@ data "aws_iam_policy_document" "reporter_serverless_deploy" {
       "iam:GetRolePolicy",
       "iam:ListRolePolicies",
       "iam:ListAttachedRolePolicies",
+      # Read-only; the provider calls it before deleting a role, to find
+      # instance profiles to detach it from.
+      "iam:ListInstanceProfilesForRole",
       "iam:TagRole",
       "iam:UntagRole",
       "iam:DeleteRole",
