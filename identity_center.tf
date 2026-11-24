@@ -53,7 +53,7 @@ resource "aws_ssoadmin_permission_set" "read_only" {
 
   name             = "ReadOnlyAccess"
   instance_arn     = tolist(data.aws_ssoadmin_instances.this.arns)[0]
-  session_duration = "PT8H"
+  session_duration = "PT12H"
 }
 
 resource "aws_ssoadmin_managed_policy_attachment" "read_only" {
