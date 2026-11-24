@@ -118,6 +118,20 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     resources = ["arn:aws:iam::${var.owner_account_id}:saml-provider/*"]
   }
 
+  # Identity Center's provisioning of a permission set also reads the
+  # AWSReservedSSO_<set> role it creates in the target account, with this
+  # role's own permissions. Hit as a 403 (iam:GetRole) when updating
+  # ReadOnlyAccess. Read-only, and limited to those roles' names.
+  statement {
+    sid     = "IdentityCenterReservedRoleRead"
+    effect  = "Allow"
+    actions = ["iam:GetRole"]
+    resources = [
+      "arn:aws:iam::${var.owner_account_id}:role/aws-reserved/sso.amazonaws.com/*/AWSReservedSSO_ReadOnlyAccess_*",
+      "arn:aws:iam::${var.owner_account_id}:role/aws-reserved/sso.amazonaws.com/*/AWSReservedSSO_AdministratorAccess_*",
+    ]
+  }
+
   # ListSAMLProviders has no resource-level scoping — its request context is
   # always account-wide regardless of what ARN a policy names, so this has
   # to be its own "*" statement rather than folded into the one above.
