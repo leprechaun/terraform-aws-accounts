@@ -460,8 +460,19 @@ data "aws_iam_policy_document" "reporter_serverless_deploy" {
     resources = [
       "arn:aws:logs:*:*:log-group:/aws/apigateway/*",
       "arn:aws:logs:*:*:log-group:/aws/lambda/snacker-tracker-*",
+      "arn:aws:logs:*:*:log-group:/aws/kinesisfirehose/snacker-tracker-*",
       "arn:aws:logs:*:*:log-group:API-Gateway-Execution-Logs*",
     ]
+  }
+
+  # Log streams inside the Firehose log groups, which Terraform creates
+  # alongside them. Only creation: the app's Firehose writes events with its
+  # own role.
+  statement {
+    sid       = "CloudWatchFirehoseLogStreams"
+    effect    = "Allow"
+    actions   = ["logs:CreateLogStream"]
+    resources = ["arn:aws:logs:*:*:log-group:/aws/kinesisfirehose/snacker-tracker-*:log-stream:*"]
   }
 
   # DescribeLogGroups is a list operation: AWS doesn't support scoping it
