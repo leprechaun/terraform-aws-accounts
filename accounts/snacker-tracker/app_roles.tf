@@ -460,7 +460,23 @@ data "aws_iam_policy_document" "reporter_serverless_deploy" {
     resources = [
       "arn:aws:logs:*:*:log-group:/aws/apigateway/*",
       "arn:aws:logs:*:*:log-group:/aws/lambda/snacker-tracker-*",
+      "arn:aws:logs:*:*:log-group:/aws/kinesisfirehose/snacker-tracker-*",
       "arn:aws:logs:*:*:log-group:API-Gateway-Execution-Logs*",
+    ]
+  }
+
+  # Log streams inside the Firehose log groups: Terraform creates, reads back
+  # on refresh, and deletes them with their groups. No PutLogEvents: the
+  # app's Firehose writes events with its own role. DescribeLogStreams is
+  # scoped to the log group, not its streams, which is what AWS checks it
+  # against.
+  statement {
+    sid     = "CloudWatchFirehoseLogStreams"
+    effect  = "Allow"
+    actions = ["logs:CreateLogStream", "logs:DescribeLogStreams", "logs:DeleteLogStream"]
+    resources = [
+      "arn:aws:logs:*:*:log-group:/aws/kinesisfirehose/snacker-tracker-*",
+      "arn:aws:logs:*:*:log-group:/aws/kinesisfirehose/snacker-tracker-*:log-stream:*",
     ]
   }
 
